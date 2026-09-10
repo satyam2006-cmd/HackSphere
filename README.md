@@ -52,7 +52,9 @@ corporate data.
 - [ ] Optional LLM message adapter
 - [ ] Docker Compose and CI workflow
 
-See [the roadmap](docs/ROADMAP.md) for the planned milestones.
+See the [project status and roadmap](docs/DOCUMENT.md) for what is complete and
+what remains. The original [technical roadmap](docs/ROADMAP.md) is also retained
+for milestone planning.
 
 ## Quick start
 
