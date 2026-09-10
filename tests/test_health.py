@@ -20,3 +20,22 @@ def test_health_returns_versioned_ok_response() -> None:
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok", "version": "0.1.0"}
+
+
+def test_root_returns_api_links() -> None:
+    async def request_root():
+        transport = ASGITransport(app=app)
+        async with AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            return await client.get("/")
+
+    response = asyncio.run(request_root())
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "name": "HackSphere",
+        "health": "/health",
+        "docs": "/docs",
+    }

@@ -19,10 +19,21 @@ from lead_intelligence.schemas import (
 )
 
 app = FastAPI(
-    title="AI Lead Conversion Platform",
+    title="HackSphere",
     summary="Privacy-safe lead scoring and outreach drafting",
     version="0.1.0",
 )
+
+
+@app.get("/", tags=["system"])
+def root() -> dict[str, str]:
+    """Provide a useful response when the API root is opened in a browser."""
+
+    return {
+        "name": app.title,
+        "health": "/health",
+        "docs": "/docs",
+    }
 
 
 @app.get("/health", response_model=HealthResponse, tags=["system"])
