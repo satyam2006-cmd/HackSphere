@@ -137,9 +137,9 @@ export function KPIStats({ leads, metrics }: KPIStatsProps) {
                   <CartesianGrid horizontal={false} stroke="#e5e5e5" />
                   <XAxis type="number" domain={[0, 100]} hide />
                   <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={64} tick={{ fill: "#111111", fontSize: 12 }} />
-                  <Tooltip formatter={(value) => [`${value}%`, "Likelihood"]} />
+                  <Tooltip formatter={(value: number | string) => [`${value}%`, "Likelihood"]} />
                   <Bar dataKey="likelihood" fill="#111111" radius={4} barSize={22}>
-                    <LabelList dataKey="likelihood" position="right" formatter={(value) => `${value}%`} fill="#111111" fontSize={12} />
+                    <LabelList dataKey="likelihood" position="right" formatter={(value: number | string) => `${value}%`} fill="#111111" fontSize={12} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>

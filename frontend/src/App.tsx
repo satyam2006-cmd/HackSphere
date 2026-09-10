@@ -4,6 +4,7 @@ import { KPIStats } from "@/components/dashboard/KPIStats";
 import { LeadsTable } from "@/components/dashboard/LeadsTable";
 import { LeadDetails } from "@/components/dashboard/LeadDetails";
 import { OutreachPage } from "@/components/dashboard/OutreachPage";
+import { ConversionPanel } from "@/components/dashboard/ConversionPanel";
 import { LeadItem, ModelMetrics, OutreachDraftState, LeadListResponse } from "@/types/crm";
 import {
   Sparkles,
@@ -131,7 +132,7 @@ export function App() {
 
   const handleNavigate = (href: string) => {
     const target = href.replace("#", "");
-    if (!["dashboard", "analytics", "leads", "outreach"].includes(target)) {
+    if (!["dashboard", "analytics", "leads", "intelligence", "outreach"].includes(target)) {
       return;
     }
     setCurrentTab(target);
@@ -163,6 +164,7 @@ export function App() {
               { label: "Home", href: "#dashboard" },
               { label: "Analytics", href: "#analytics" },
               { label: "Leads", href: "#leads" },
+              { label: "Intelligence", href: "#intelligence" },
               { label: "Outreach", href: "#outreach" },
             ]}
             activeHref={`#${currentTab === "dashboard" ? "dashboard" : currentTab}`}
@@ -244,6 +246,10 @@ export function App() {
                 onSelectLead={handleSelectLead}
                 onGenerateOutreach={handleGenerateOutreach}
               />
+            ) : currentTab === "intelligence" ? (
+              <section id="intelligence">
+                <ConversionPanel />
+              </section>
             ) : (
               <>
                 <section id="dashboard">
