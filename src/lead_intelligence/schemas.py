@@ -1,5 +1,7 @@
 """API schemas shared by endpoints and tests."""
 
+from __future__ import annotations
+
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -24,7 +26,7 @@ class HistoricalPredictionRequest(BaseModel):
     features: dict[str, StrictFiniteFloat]
 
     @model_validator(mode="after")
-    def validate_recovered_feature_schema(self) -> "HistoricalPredictionRequest":
+    def validate_recovered_feature_schema(self) -> HistoricalPredictionRequest:
         """Require exactly the recovered 18-feature schema."""
         if set(self.features) != set(HISTORICAL_FINAL_FEATURE_COLUMNS):
             raise ValueError(
@@ -49,7 +51,7 @@ class HistoricalOutreachDraftRequest(BaseModel):
     predicted_label: StrictHistoricalLabel
 
     @model_validator(mode="after")
-    def validate_non_blank_context(self) -> "HistoricalOutreachDraftRequest":
+    def validate_non_blank_context(self) -> HistoricalOutreachDraftRequest:
         """Reject whitespace-only lead context values."""
         for field in ("lead_name", "source", "sales_unit", "priority"):
             if not getattr(self, field).strip():
@@ -250,3 +252,31 @@ class ConversionPipelineMetricsResponse(BaseModel):
     numerical_features: list[str] = Field(default_factory=list)
     categorical_features: list[str] = Field(default_factory=list)
     description: str = ""
+
+
+__all__ = [
+    "CleaningReport",
+    "ConversionBatchPredictRequest",
+    "ConversionBatchPredictResponse",
+    "ConversionPipelineMetricsResponse",
+    "ConversionPredictRequest",
+    "ConversionPredictResponse",
+    "HealthResponse",
+    "HistoricalModelMetricsResponse",
+    "HistoricalOutreachDraftRequest",
+    "HistoricalOutreachDraftResponse",
+    "HistoricalPredictionRequest",
+    "HistoricalPredictionResponse",
+    "InjectedDatasetRequest",
+    "InjectedPipelineResponse",
+    "LeadItem",
+    "LeadListResponse",
+    "PipelineDemoResponse",
+    "PipelineDemoSummary",
+    "ScoredLeadItem",
+    "ScoredLeadListResponse",
+    "StrictFiniteFloat",
+    "StrictHistoricalLabel",
+    "StrictText",
+]
+

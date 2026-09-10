@@ -1,5 +1,7 @@
 """FastAPI entry point for the reconstruction."""
 
+from __future__ import annotations
+
 import os
 
 import pandas as pd
@@ -8,6 +10,17 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from xgboost import XGBClassifier
 
+from lead_intelligence.conversion_pipeline import (
+    ALL_FEATURE_COLS,
+    clean_and_process_injected_dataset,
+    get_conversion_pipeline,
+    get_demo_20_pipeline,
+    get_lock_strategy,
+    get_pipeline_metrics,
+    get_raw_sample_injection_leads,
+    load_scored_leads_from_csv,
+    score_lead,
+)
 from lead_intelligence.historical_features import HISTORICAL_FINAL_FEATURE_COLUMNS
 from lead_intelligence.historical_llm import create_historical_outreach_adapter
 from lead_intelligence.historical_outreach import build_historical_outreach_prompt
@@ -19,14 +32,24 @@ from lead_intelligence.lead_store import (
     load_synthetic_leads,
 )
 from lead_intelligence.schemas import (
+    ConversionBatchPredictRequest,
+    ConversionBatchPredictResponse,
+    ConversionPipelineMetricsResponse,
+    ConversionPredictRequest,
+    ConversionPredictResponse,
     HealthResponse,
+    HistoricalModelMetricsResponse,
     HistoricalOutreachDraftRequest,
     HistoricalOutreachDraftResponse,
-    HistoricalModelMetricsResponse,
     HistoricalPredictionRequest,
     HistoricalPredictionResponse,
+    InjectedDatasetRequest,
+    InjectedPipelineResponse,
     LeadItem,
     LeadListResponse,
+    PipelineDemoResponse,
+    ScoredLeadItem,
+    ScoredLeadListResponse,
 )
 
 app = FastAPI(
@@ -209,30 +232,6 @@ def get_lead(object_id: str) -> LeadItem:
 
 # ── Conversion pipeline endpoints (from LeadintelligenceXgboost.ipynb) ───────
 
-from lead_intelligence.conversion_pipeline import (
-    get_conversion_pipeline,
-    get_pipeline_metrics,
-    get_demo_20_pipeline,
-    get_lock_strategy,
-    explain_features,
-    clean_and_process_injected_dataset,
-    get_raw_sample_injection_leads,
-    load_scored_leads_from_csv,
-    score_lead,
-    ALL_FEATURE_COLS,
-)
-from lead_intelligence.schemas import (
-    ConversionBatchPredictRequest,
-    ConversionBatchPredictResponse,
-    ConversionPipelineMetricsResponse,
-    ConversionPredictRequest,
-    ConversionPredictResponse,
-    InjectedDatasetRequest,
-    InjectedPipelineResponse,
-    PipelineDemoResponse,
-    ScoredLeadItem,
-    ScoredLeadListResponse,
-)
 
 
 @app.post(
@@ -496,7 +495,7 @@ def conversion_metrics() -> ConversionPipelineMetricsResponse:
 def conversion_pipeline_status() -> dict[str, object]:
     """Check whether the conversion pipeline is loaded and ready."""
     try:
-        pipeline = get_conversion_pipeline()
+        _ = get_conversion_pipeline()
         metrics = get_pipeline_metrics()
         return {
             "status": "ready",
