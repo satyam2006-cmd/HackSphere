@@ -12,12 +12,19 @@ from lead_intelligence.historical_features import HISTORICAL_FINAL_FEATURE_COLUM
 from lead_intelligence.historical_llm import create_historical_outreach_adapter
 from lead_intelligence.historical_outreach import build_historical_outreach_prompt
 from lead_intelligence.historical_xgboost import predict_historical_xgboost_labels
+from lead_intelligence.lead_store import (
+    get_default_model,
+    get_lead_by_id,
+    load_synthetic_leads,
+)
 from lead_intelligence.schemas import (
     HealthResponse,
     HistoricalOutreachDraftRequest,
     HistoricalOutreachDraftResponse,
     HistoricalPredictionRequest,
     HistoricalPredictionResponse,
+    LeadItem,
+    LeadListResponse,
 )
 
 app = FastAPI(
@@ -25,6 +32,9 @@ app = FastAPI(
     summary="Privacy-safe lead scoring and outreach drafting",
     version="0.1.0",
 )
+
+# Pre-load default trained baseline model
+app.state.historical_xgboost_model = get_default_model()
 
 
 @app.exception_handler(RequestValidationError)
@@ -115,3 +125,71 @@ def historical_outreach_draft(
         ) from exc
 
     return HistoricalOutreachDraftResponse(draft=adapter.draft(prompt))
+
+
+@app.get(
+    "/historical/leads",
+    response_model=LeadListResponse,
+    tags=["leads"],
+)
+def get_leads(
+    query: str | None = None,
+    status: str | None = None,
+    priority: str | None = None,
+    sort_by: str = "conversion_probability",
+    order: str = "desc",
+) -> LeadListResponse:
+    """Return synthetic CRM leads with search, filtering, and conversion likelihood ranking."""
+    leads = load_synthetic_leads()
+
+    if query:
+        q = query.lower()
+        leads = [
+            lead
+            for lead in leads
+            if q in lead.name.lower()
+            or q in lead.account_name.lower()
+            or q in lead.contact_name.lower()
+            or q in lead.source.lower()
+            or q in lead.sales_unit.lower()
+        ]
+
+    if status and status.lower() != "all":
+        leads = [lead for lead in leads if lead.status.lower() == status.lower()]
+
+    if priority and priority.lower() != "all":
+        leads = [lead for lead in leads if lead.priority.lower() == priority.lower()]
+
+    # Sorting
+    reverse = order.lower() == "desc"
+    if sort_by == "conversion_probability":
+        leads = sorted(leads, key=lambda l: l.conversion_probability, reverse=reverse)
+    elif sort_by == "name":
+        leads = sorted(leads, key=lambda l: l.name.lower(), reverse=reverse)
+    elif sort_by == "priority":
+        priority_order = {"high": 3, "normal": 2, "low": 1}
+        leads = sorted(
+            leads,
+            key=lambda l: priority_order.get(l.priority.lower(), 0),
+            reverse=reverse,
+        )
+    elif sort_by == "status":
+        leads = sorted(leads, key=lambda l: l.status.lower(), reverse=reverse)
+
+    return LeadListResponse(leads=leads, total=len(leads))
+
+
+@app.get(
+    "/historical/leads/{object_id}",
+    response_model=LeadItem,
+    tags=["leads"],
+)
+def get_lead(object_id: str) -> LeadItem:
+    """Return a single synthetic CRM lead by ObjectID or Lead_ID."""
+    lead = get_lead_by_id(object_id)
+    if lead is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"lead '{object_id}' not found",
+        )
+    return lead

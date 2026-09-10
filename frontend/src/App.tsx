@@ -1,192 +1,223 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
+import { Sidebar } from "@/components/layout/Sidebar";
+import { KPIStats } from "@/components/dashboard/KPIStats";
+import { LeadsTable } from "@/components/dashboard/LeadsTable";
+import { LeadDetails } from "@/components/dashboard/LeadDetails";
+import { LeadItem, OutreachDraftState, LeadListResponse } from "@/types/crm";
+import {
+  Sparkles,
+  Download,
+  Plus,
+  RefreshCw,
+  Bell,
+  CheckCircle2,
+  AlertCircle,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
 
-type HistoricalPredictedLabel = 0 | 1 | 2;
-
-type LeadSummary = {
-  leadId: string;
-  name: string;
-  source: string;
-  salesUnit: string;
-  priority: string;
-  predictedLabel: HistoricalPredictedLabel;
-};
-
-type OutreachDraftState =
-  | { status: "loading" }
-  | { status: "ready"; draft: string }
-  | { status: "error" };
-
-const reconstructionLead: LeadSummary = {
-  leadId: "SYN-2024-001",
-  name: "Northstar Manufacturing",
-  source: "Industry event",
-  salesUnit: "Central Europe",
-  priority: "High",
-  predictedLabel: 2,
-};
-
-const predictionCopy: Record<
-  HistoricalPredictedLabel,
-  { title: string; description: string }
-> = {
-  0: {
-    title: "Other",
-    description: "No historical qualified or converted outcome is represented.",
-  },
-  1: {
-    title: "Converted",
-    description: "Historical target class for a converted lead outcome.",
-  },
-  2: {
-    title: "Qualified",
-    description: "Historical target class for a qualified lead outcome.",
-  },
-};
-
-/** Fetch one reviewable outreach draft for the current reconstruction lead. */
-async function fetchHistoricalOutreachDraft(signal: AbortSignal): Promise<string> {
-  const response = await fetch("/historical/outreach-draft", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      lead_name: reconstructionLead.name,
-      source: reconstructionLead.source,
-      sales_unit: reconstructionLead.salesUnit,
-      priority: reconstructionLead.priority,
-      predicted_label: reconstructionLead.predictedLabel,
-    }),
-    signal,
-  });
-
-  if (!response.ok) {
-    throw new Error(`historical outreach draft request failed: ${response.status}`);
-  }
-
-  const payload: unknown = await response.json();
-  if (
-    typeof payload !== "object" ||
-    payload === null ||
-    !("draft" in payload) ||
-    typeof payload.draft !== "string" ||
-    !payload.draft.trim()
-  ) {
-    throw new Error("historical outreach draft response is invalid");
-  }
-
-  return payload.draft;
-}
-
-/** Render the privacy-safe historical lead, prediction, and outreach review flow. */
 export function App() {
-  const prediction = predictionCopy[reconstructionLead.predictedLabel];
+  const [currentTab, setCurrentTab] = useState("leads");
+  const [leads, setLeads] = useState<LeadItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedLead, setSelectedLead] = useState<LeadItem | null>(null);
+
+  // Filters & Sorting state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [priorityFilter, setPriorityFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("conversion_probability");
+
+  // Outreach Draft state
   const [outreachDraft, setOutreachDraft] = useState<OutreachDraftState>({
-    status: "loading",
+    status: "idle",
   });
+
+  // Fetch leads from backend
+  const fetchLeads = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const params = new URLSearchParams();
+      if (searchQuery) params.append("query", searchQuery);
+      if (statusFilter !== "all") params.append("status", statusFilter);
+      if (priorityFilter !== "all") params.append("priority", priorityFilter);
+      params.append("sort_by", sortBy);
+
+      const res = await fetch(`/historical/leads?${params.toString()}`);
+      if (!res.ok) {
+        throw new Error(`Failed to load leads: ${res.status}`);
+      }
+      const data: LeadListResponse = await res.json();
+      setLeads(data.leads);
+
+      // Default select the top ranked lead if none selected
+      if (!selectedLead && data.leads.length > 0) {
+        setSelectedLead(data.leads[0]);
+      } else if (selectedLead) {
+        // Keep selected lead updated
+        const updated = data.leads.find((l) => l.object_id === selectedLead.object_id);
+        if (updated) setSelectedLead(updated);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load leads");
+    } finally {
+      setLoading(false);
+    }
+  }, [searchQuery, statusFilter, priorityFilter, sortBy]);
 
   useEffect(() => {
-    const controller = new AbortController();
+    fetchLeads();
+  }, [fetchLeads]);
 
-    setOutreachDraft({ status: "loading" });
-    fetchHistoricalOutreachDraft(controller.signal)
-      .then((draft) => {
-        setOutreachDraft({ status: "ready", draft });
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) {
-          setOutreachDraft({ status: "error" });
-        }
+  // Generate outreach draft for a selected lead
+  const handleGenerateOutreach = async (lead: LeadItem) => {
+    try {
+      setOutreachDraft({ status: "loading" });
+
+      const res = await fetch("/historical/outreach-draft", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          lead_name: lead.name,
+          source: lead.source,
+          sales_unit: lead.sales_unit || "Sales Unit",
+          priority: lead.priority,
+          predicted_label: lead.predicted_label,
+        }),
       });
 
-    return () => {
-      controller.abort();
-    };
-  }, []);
+      if (!res.ok) {
+        throw new Error(`Outreach request failed with status: ${res.status}`);
+      }
+
+      const data = await res.json();
+      if (data && typeof data.draft === "string") {
+        setOutreachDraft({ status: "ready", draft: data.draft });
+      } else {
+        throw new Error("Invalid draft format received");
+      }
+    } catch (err) {
+      setOutreachDraft({
+        status: "error",
+        error: err instanceof Error ? err.message : "Generation failed",
+      });
+    }
+  };
+
+  // When selected lead changes, reset outreach draft
+  const handleSelectLead = (lead: LeadItem) => {
+    setSelectedLead(lead);
+    setOutreachDraft({ status: "idle" });
+  };
 
   return (
-    <main className="page-shell">
-      <section className="dashboard" aria-labelledby="dashboard-title">
-        <header className="dashboard-header">
-          <div>
-            <p className="eyebrow">HackSphere 2026</p>
-            <h1 id="dashboard-title">Lead conversion review</h1>
-            <p className="intro">
-              Privacy-safe preview of the lead, prediction, and outreach review flow.
-            </p>
+    <div className="flex h-screen bg-slate-100 font-sans text-slate-900 overflow-hidden">
+      {/* Syncrowave Sidebar */}
+      <Sidebar
+        currentTab={currentTab}
+        onSelectTab={setCurrentTab}
+        leadCount={leads.length}
+      />
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Top Navbar */}
+        <header className="h-16 px-6 bg-white border-b border-slate-200/80 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            <h1 className="text-lg font-bold text-slate-900 tracking-tight">
+              Lead Intelligence & Outreach Portal
+            </h1>
+            <span className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+              <Sparkles className="h-3 w-3 text-indigo-600" />
+              XGBoost Model v1.0
+            </span>
           </div>
-          <span className="fixture-label">Synthetic fixture</span>
+
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchLeads}
+              disabled={loading}
+              className="text-xs h-9 border-slate-200 hover:bg-slate-50 text-slate-700"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${loading ? "animate-spin text-indigo-600" : "text-slate-500"}`} />
+              Refresh Data
+            </Button>
+            
+            <Button
+              variant="default"
+              size="sm"
+              className="text-xs h-9 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
+              onClick={() => {
+                if (leads.length > 0) {
+                  const json = JSON.stringify(leads, null, 2);
+                  const blob = new Blob([json], { type: "application/json" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = "crm-scored-leads.json";
+                  a.click();
+                }
+              }}
+            >
+              <Download className="h-3.5 w-3.5 mr-1.5" />
+              Export Scored Queue
+            </Button>
+          </div>
         </header>
 
-        <article className="lead-card">
-          <div className="lead-heading">
-            <div>
-              <p className="section-label">Lead</p>
-              <h2>{reconstructionLead.name}</h2>
-              <p className="lead-id">{reconstructionLead.leadId}</p>
-            </div>
+        {/* Scrollable Dashboard Body */}
+        <div className="flex-1 flex min-h-0 overflow-hidden">
+          <main className="flex-1 overflow-y-auto p-6 space-y-6">
+            {/* KPI Cards */}
+            <KPIStats leads={leads} />
 
-            <div
-              className="prediction-badge"
-              aria-label={`Predicted label ${reconstructionLead.predictedLabel}: ${prediction.title}`}
-            >
-              <span>Predicted label</span>
-              <strong>{reconstructionLead.predictedLabel}</strong>
-              <small>{prediction.title}</small>
-            </div>
-          </div>
-
-          <dl className="lead-details">
-            <div>
-              <dt>Source</dt>
-              <dd>{reconstructionLead.source}</dd>
-            </div>
-            <div>
-              <dt>Sales unit</dt>
-              <dd>{reconstructionLead.salesUnit}</dd>
-            </div>
-            <div>
-              <dt>Priority</dt>
-              <dd>{reconstructionLead.priority}</dd>
-            </div>
-          </dl>
-
-          <footer className="prediction-note">
-            <span>Historical class meaning</span>
-            <p>{prediction.description}</p>
-          </footer>
-        </article>
-
-        <article className="outreach-card" aria-labelledby="outreach-title">
-          <div className="outreach-heading">
-            <div>
-              <p className="section-label">Outreach draft</p>
-              <h2 id="outreach-title">Customer message review</h2>
-            </div>
-            <span className="review-label">Human review required</span>
-          </div>
-
-          <div className="draft-copy" aria-live="polite">
-            {outreachDraft.status === "loading" && (
-              <p className="draft-status">Loading outreach draft...</p>
+            {/* Error banner if any */}
+            {error && (
+              <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
+                  <span>{error}</span>
+                </div>
+                <Button variant="outline" size="sm" onClick={fetchLeads} className="h-7 text-xs bg-white">
+                  Retry
+                </Button>
+              </div>
             )}
-            {outreachDraft.status === "error" && (
-              <p className="draft-status">
-                Outreach draft is unavailable. Confirm that the reconstruction API is
-                running and try again.
-              </p>
-            )}
-            {outreachDraft.status === "ready" && (
-              <p className="draft-text">{outreachDraft.draft}</p>
-            )}
-          </div>
 
-          <footer className="outreach-note">
-            This panel loads its reconstruction draft from the historical outreach API.
-            The returned message still requires human review before use.
-          </footer>
-        </article>
-      </section>
-    </main>
+            {/* Leads Table */}
+            <LeadsTable
+              leads={leads}
+              selectedLead={selectedLead}
+              onSelectLead={handleSelectLead}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              statusFilter={statusFilter}
+              onStatusFilterChange={setStatusFilter}
+              priorityFilter={priorityFilter}
+              onPriorityFilterChange={setPriorityFilter}
+              sortBy={sortBy}
+              onSortByChange={setSortBy}
+            />
+          </main>
+
+          {/* Slide-out Intelligence & Outreach Drawer */}
+          {selectedLead && (
+            <LeadDetails
+              lead={selectedLead}
+              onClose={() => setSelectedLead(null)}
+              outreachDraft={outreachDraft}
+              onGenerateOutreach={handleGenerateOutreach}
+            />
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
+export default App;

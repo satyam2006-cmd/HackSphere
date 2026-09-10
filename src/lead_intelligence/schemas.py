@@ -61,3 +61,35 @@ class HistoricalOutreachDraftResponse(BaseModel):
     """Customer-facing outreach draft returned for human review."""
 
     draft: str
+
+
+class LeadItem(BaseModel):
+    """Synthetic CRM lead item for list and detail views."""
+
+    object_id: str
+    lead_id: str
+    name: str
+    account_name: str = ""
+    contact_name: str = ""
+    job_title: str = ""
+    status: str
+    source: str
+    priority: str
+    start_date: str = ""
+    end_date: str = ""
+    sales_unit: str = ""
+    sales_territory: str = ""
+    owner_name: str = ""
+    note: str = ""
+    features: dict[str, float] = Field(default_factory=dict)
+    predicted_label: int = 0
+    predicted_class: str = "Other"
+    conversion_probability: float = 0.0
+    confidence: float = 0.0
+
+
+class LeadListResponse(BaseModel):
+    """List of synthetic leads with ranking and metrics."""
+
+    leads: list[LeadItem]
+    total: int
