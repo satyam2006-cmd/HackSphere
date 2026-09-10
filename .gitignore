@@ -1,0 +1,44 @@
+# Uploaded source material and archives
+upload/
+*.zip
+*.7z
+*.rar
+
+# Secrets
+.env
+.env.*
+!.env.example
+*azure_settings*
+*.pem
+*.key
+
+# Private and generated data
+*.csv
+!data/synthetic/*.csv
+data/raw/
+data/private/
+data/external/
+artifacts/
+models/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+dist/
+build/
+
+# Frontend
+node_modules/
+frontend/dist/
+.vite/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
