@@ -2,12 +2,30 @@ import React from "react";
 import { Users, Target, TrendingUp, Sparkles, ArrowUpRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { LeadItem } from "@/types/crm";
+import { ModelMetrics } from "@/types/crm";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Area,
+  AreaChart,
+  Cell,
+  Legend,
+  LabelList,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 interface KPIStatsProps {
   leads: LeadItem[];
+  metrics: ModelMetrics | null;
 }
 
-export function KPIStats({ leads }: KPIStatsProps) {
+export function KPIStats({ leads, metrics }: KPIStatsProps) {
   const totalLeads = leads.length;
   const highPriorityCount = leads.filter(
     (l) => l.priority.toLowerCase() === "high" || l.conversion_probability >= 0.7
@@ -19,20 +37,15 @@ export function KPIStats({ leads }: KPIStatsProps) {
       )
     : 0;
 
-  const qualifiedCount = leads.filter(
-    (l) => l.predicted_label === 1 || l.predicted_label === 2
-  ).length;
-  const qualifiedPercentage = totalLeads > 0 ? Math.round((qualifiedCount / totalLeads) * 100) : 0;
-
   const stats = [
     {
       title: "Total Tracked Leads",
       value: totalLeads.toString(),
-      subtext: "+14.2% from last cycle",
+      subtext: "Current scored queue",
       icon: Users,
       color: "from-blue-600 to-indigo-600",
       accentBg: "bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400",
-      badge: "+12 new",
+      badge: "Live",
     },
     {
       title: "High-Likelihood Leads",
@@ -46,25 +59,40 @@ export function KPIStats({ leads }: KPIStatsProps) {
     {
       title: "Avg Conversion Likelihood",
       value: `${avgConvProb}%`,
-      subtext: "XGBoost softprob calibrated",
+      subtext: `${metrics?.training_rows ?? 0} synthetic training rows`,
       icon: TrendingUp,
       color: "from-emerald-500 to-teal-600",
       accentBg: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400",
-      badge: "Calibrated",
+      badge: "XGBoost",
     },
     {
-      title: "AI Qualified Outcomes",
-      value: `${qualifiedPercentage}%`,
-      subtext: `${qualifiedCount} leads ready for review`,
+      title: "Model Accuracy",
+      value: metrics ? `${Math.round(metrics.accuracy * 100)}%` : "--",
+      subtext: "Training-set accuracy",
       icon: Sparkles,
       color: "from-amber-500 to-orange-600",
       accentBg: "bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400",
-      badge: "Targeted",
+      badge: metrics ? "Verified" : "Loading",
     },
   ];
 
+  const chartLeads = leads.slice(0, 8).map((lead, index) => ({
+    name: `Lead ${index + 1}`,
+    likelihood: Math.round(lead.conversion_probability * 100),
+  }));
+  const outcomeData = [
+    { name: "Other", value: leads.filter((lead) => lead.predicted_label === 0).length },
+    { name: "Converted", value: leads.filter((lead) => lead.predicted_label === 1).length },
+    { name: "Qualified", value: leads.filter((lead) => lead.predicted_label === 2).length },
+  ];
+  const trendData = leads.map((lead, index) => ({
+    lead: index + 1,
+    likelihood: Math.round(lead.conversion_probability * 100),
+  }));
+
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       {stats.map((stat, i) => {
         const Icon = stat.icon;
         return (
@@ -91,6 +119,104 @@ export function KPIStats({ leads }: KPIStatsProps) {
           </Card>
         );
       })}
-    </div>
+      </div>
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <Card className="chart-card border-slate-200/80 shadow-sm xl:col-span-2">
+          <CardContent className="p-5">
+            <div className="mb-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Lead likelihood
+              </p>
+              <p className="text-xs text-slate-400 mt-1">
+                Highest-ranked leads from the XGBoost scoring queue
+              </p>
+            </div>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartLeads} layout="vertical" margin={{ left: 12, right: 38, top: 4, bottom: 4 }}>
+                  <CartesianGrid horizontal={false} stroke="#e5e5e5" />
+                  <XAxis type="number" domain={[0, 100]} hide />
+                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={64} tick={{ fill: "#111111", fontSize: 12 }} />
+                  <Tooltip formatter={(value) => [`${value}%`, "Likelihood"]} />
+                  <Bar dataKey="likelihood" fill="#111111" radius={4} barSize={22}>
+                    <LabelList dataKey="likelihood" position="right" formatter={(value) => `${value}%`} fill="#111111" fontSize={12} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="chart-card border-slate-200/80 shadow-sm">
+          <CardContent className="p-5">
+            <div className="mb-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Predicted outcomes
+              </p>
+              <p className="text-xs text-slate-400 mt-1">Scored queue distribution</p>
+            </div>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <defs>
+                    <linearGradient id="donutOther" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="#050505" />
+                      <stop offset="100%" stopColor="#4a4a4a" />
+                    </linearGradient>
+                    <linearGradient id="donutConverted" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="#333333" />
+                      <stop offset="100%" stopColor="#858585" />
+                    </linearGradient>
+                    <linearGradient id="donutQualified" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="#8a8a8a" />
+                      <stop offset="100%" stopColor="#d4d4d4" />
+                    </linearGradient>
+                  </defs>
+                  <Pie data={outcomeData} dataKey="value" nameKey="name" innerRadius={62} outerRadius={94} paddingAngle={4} stroke="#ffffff" strokeWidth={3}>
+                    {outcomeData.map((entry, index) => (
+                      <Cell key={entry.name} fill={`url(#${["donutOther", "donutConverted", "donutQualified"][index]})`} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend iconType="circle" />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="chart-card border-slate-200/80 shadow-sm xl:col-span-3">
+          <CardContent className="p-5">
+            <div className="mb-4 flex items-end justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Scoring trend
+                </p>
+                <p className="text-xs text-slate-400 mt-1">Conversion likelihood across the ranked queue</p>
+              </div>
+              <span className="text-xs font-semibold text-black/50">0–100%</span>
+            </div>
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={trendData} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="likelihoodShade" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#111111" stopOpacity={0.28} />
+                      <stop offset="70%" stopColor="#737373" stopOpacity={0.12} />
+                      <stop offset="100%" stopColor="#d4d4d4" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid vertical={false} stroke="#e5e5e5" />
+                  <XAxis dataKey="lead" tickLine={false} axisLine={false} />
+                  <YAxis domain={[0, 100]} tickLine={false} axisLine={false} width={36} />
+                  <Tooltip formatter={(value) => [`${value}%`, "Likelihood"]} />
+                  <Area dataKey="likelihood" type="natural" stroke="#111111" strokeWidth={3} fill="url(#likelihoodShade)" fillOpacity={1} dot={{ r: 3, fill: "#111111" }} activeDot={{ r: 6 }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </>
   );
 }

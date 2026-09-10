@@ -26,6 +26,7 @@ interface LeadDetailsProps {
   outreachDraft: OutreachDraftState;
   onGenerateOutreach: (lead: LeadItem) => void;
   onUpdateDraftText?: (draft: string) => void;
+  className?: string;
 }
 
 export function LeadDetails({
@@ -33,6 +34,7 @@ export function LeadDetails({
   onClose,
   outreachDraft,
   onGenerateOutreach,
+  className = "",
 }: LeadDetailsProps) {
   const [copied, setCopied] = useState(false);
   const [reviewed, setReviewed] = useState(false);
@@ -87,7 +89,7 @@ export function LeadDetails({
   ];
 
   return (
-    <div className="w-full lg:w-[480px] shrink-0 bg-white border-l border-slate-200 flex flex-col h-full shadow-lg z-10 transition-all duration-300">
+    <div className={`w-full shrink-0 bg-white border border-black/10 rounded-2xl flex flex-col min-h-[620px] shadow-sm z-10 transition-all duration-300 ${className}`}>
       {/* Header */}
       <div className="p-5 border-b border-slate-100 flex items-start justify-between bg-slate-50/50">
         <div>
@@ -259,7 +261,8 @@ export function LeadDetails({
               <div>
                 <p className="font-semibold">Outreach Generation Unavailable</p>
                 <p className="text-[11px] text-amber-700 mt-0.5">
-                  The outreach draft provider is not configured or reachable. The system uses local deterministic fallback when available.
+                  {outreachDraft.error ||
+                    "The outreach draft provider is not configured or reachable."}
                 </p>
               </div>
             </div>

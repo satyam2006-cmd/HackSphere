@@ -28,6 +28,13 @@ export interface LeadListResponse {
   total: number;
 }
 
+export interface ModelMetrics {
+  accuracy: number;
+  confusion_matrix: number[][];
+  labels: string[];
+  training_rows: number;
+}
+
 export type OutreachDraftState =
   | { status: "idle" }
   | { status: "loading" }

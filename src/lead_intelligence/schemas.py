@@ -93,3 +93,12 @@ class LeadListResponse(BaseModel):
 
     leads: list[LeadItem]
     total: int
+
+
+class HistoricalModelMetricsResponse(BaseModel):
+    """Model quality and confusion matrix values shown by the dashboard."""
+
+    accuracy: float
+    confusion_matrix: list[list[int]]
+    labels: list[str]
+    training_rows: int

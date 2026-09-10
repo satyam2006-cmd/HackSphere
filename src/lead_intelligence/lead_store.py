@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Final
 
 import pandas as pd
+from sklearn.metrics import accuracy_score, confusion_matrix
 
 from lead_intelligence.historical_features import HISTORICAL_FINAL_FEATURE_COLUMNS
 from lead_intelligence.historical_xgboost import fit_historical_xgboost_model
@@ -61,22 +62,76 @@ def _build_lead_features(row: dict[str, str], index: int) -> dict[str, float]:
 
 _CACHED_LEADS: list[LeadItem] | None = None
 _DEFAULT_MODEL = None
+_TRAINING_FEATURES: pd.DataFrame | None = None
+_TRAINING_TARGET: pd.Series | None = None
+
+
+def _target_for_row(row: dict[str, str]) -> int:
+    """Map recovered CRM status fields to the reconstructed target classes."""
+    status = (row.get("Status_Text") or "").strip()
+    reason = (row.get("Reason_Code_Text") or "").strip()
+    if status == "Qualified":
+        return 2
+    if status == "Converted" or (status == "Closed" and reason == "Quote Created"):
+        return 1
+    return 0
+
+
+def _training_data() -> tuple[pd.DataFrame, pd.Series]:
+    """Build the model matrix and target from the committed synthetic sample."""
+    global _TRAINING_FEATURES, _TRAINING_TARGET
+    if _TRAINING_FEATURES is not None and _TRAINING_TARGET is not None:
+        return _TRAINING_FEATURES, _TRAINING_TARGET
+    if not LEADS_SAMPLE_CSV.exists():
+        raise FileNotFoundError(f"synthetic lead data not found: {LEADS_SAMPLE_CSV}")
+
+    with LEADS_SAMPLE_CSV.open(mode="r", encoding="utf-8") as file:
+        rows = list(csv.DictReader(file))
+    if not rows:
+        raise ValueError("synthetic lead data must contain at least one row")
+
+    feature_rows = [
+        _build_lead_features(row, index) for index, row in enumerate(rows)
+    ]
+    _TRAINING_FEATURES = pd.DataFrame(
+        [
+            [row[column] for column in HISTORICAL_FINAL_FEATURE_COLUMNS]
+            for row in feature_rows
+        ],
+        columns=HISTORICAL_FINAL_FEATURE_COLUMNS,
+    )
+    _TRAINING_TARGET = pd.Series(
+        [_target_for_row(row) for row in rows],
+        name="label",
+        dtype="int64",
+    )
+    if set(_TRAINING_TARGET.unique()) != {0, 1, 2}:
+        raise ValueError("synthetic lead data must contain all reconstructed target classes")
+    return _TRAINING_FEATURES, _TRAINING_TARGET
 
 
 def get_default_model():
-    """Return a fitted XGBoost model trained on calibrated synthetic rows."""
+    """Return the fitted XGBoost model trained on the synthetic lead matrix."""
     global _DEFAULT_MODEL
     if _DEFAULT_MODEL is None:
-        row_count = 18
-        x_train = pd.DataFrame(
-            {
-                col: [(r + offset * 3) % 11 for r in range(row_count)]
-                for offset, col in enumerate(HISTORICAL_FINAL_FEATURE_COLUMNS)
-            }
-        )
-        y_train = pd.Series([0, 1, 2] * 6, name="label", dtype="int64")
+        x_train, y_train = _training_data()
         _DEFAULT_MODEL = fit_historical_xgboost_model(x_train, y_train, random_state=42)
     return _DEFAULT_MODEL
+
+
+def get_model_metrics() -> dict[str, object]:
+    """Return model quality values and its confusion matrix for the dashboard."""
+    model = get_default_model()
+    features, target = _training_data()
+    predictions = model.predict(features).astype("int64")
+    return {
+        "accuracy": round(float(accuracy_score(target, predictions)), 4),
+        "confusion_matrix": confusion_matrix(
+            target, predictions, labels=[0, 1, 2]
+        ).tolist(),
+        "labels": ["Other", "Converted", "Qualified"],
+        "training_rows": len(target),
+    }
 
 
 def load_synthetic_leads() -> list[LeadItem]:
@@ -104,15 +159,13 @@ def load_synthetic_leads() -> list[LeadItem]:
             columns=HISTORICAL_FINAL_FEATURE_COLUMNS,
         )
         
-        try:
-            probabilities = model.predict_proba(feature_df)[0]
-            pred_label = int(model.predict(feature_df)[0])
-            conv_prob = float(probabilities[1])  # Class 1 is Converted
-            conf = float(max(probabilities))
-        except Exception:
-            pred_label = 2 if (idx % 3 == 0) else (1 if (idx % 3 == 1) else 0)
-            conv_prob = 0.85 if pred_label == 1 else (0.65 if pred_label == 2 else 0.15)
-            conf = 0.88
+        probabilities = model.predict_proba(feature_df)[0]
+        pred_label = int(model.predict(feature_df)[0])
+        class_probabilities = dict(zip(model.classes_, probabilities, strict=True))
+        conv_prob = float(
+            class_probabilities.get(1, 0.0) + class_probabilities.get(2, 0.0)
+        )
+        conf = float(max(probabilities))
 
         pred_class = LABEL_NAMES.get(pred_label, "Other")
 

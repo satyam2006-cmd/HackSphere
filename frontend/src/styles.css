@@ -11,10 +11,9 @@
 
 :root {
   font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
-  color: #172033;
-  background: #f4f6fb;
+    "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  color: #000000;
+  background: #ffffff;
   font-synthesis: none;
   text-rendering: optimizelegibility;
 }
@@ -23,6 +22,141 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+}
+
+.dashboard-app,
+.dashboard-app button,
+.dashboard-app input,
+.dashboard-app select,
+.dashboard-app textarea {
+  font-family: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+}
+
+.dashboard-app h1,
+.dashboard-app h2,
+.dashboard-app h3,
+.dashboard-app h4,
+.dashboard-app h5,
+.dashboard-app h6 {
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.dashboard-app .bg-slate-100,
+.dashboard-app .bg-slate-50,
+.dashboard-app .bg-slate-50\/50,
+.dashboard-app .bg-slate-50\/80,
+.dashboard-app .bg-white {
+  background-color: #ffffff !important;
+}
+
+.dashboard-app .text-slate-900,
+.dashboard-app .text-slate-800,
+.dashboard-app .text-slate-700,
+.dashboard-app .text-slate-600,
+.dashboard-app .text-slate-500,
+.dashboard-app .text-slate-400 {
+  color: #000000 !important;
+}
+
+.dashboard-app .border-slate-100,
+.dashboard-app .border-slate-200,
+.dashboard-app .border-slate-200\/80 {
+  border-color: #e5e5e5 !important;
+}
+
+.dashboard-app .bg-indigo-600,
+.dashboard-app .bg-indigo-700,
+.dashboard-app .bg-violet-600,
+.dashboard-app .bg-purple-600 {
+  background-color: #000000 !important;
+}
+
+.dashboard-app .text-indigo-600,
+.dashboard-app .text-indigo-700,
+.dashboard-app .text-violet-700,
+.dashboard-app .text-purple-700 {
+  color: #000000 !important;
+}
+
+.pill-nav {
+  align-items: center;
+  background: var(--pill-base);
+  border-radius: 999px;
+  display: flex;
+  gap: 8px;
+  padding: 5px;
+  transition: transform 220ms var(--pill-ease);
+}
+
+.chart-card {
+  box-shadow:
+    0 12px 26px rgb(0 0 0 / 10%),
+    0 3px 0 rgb(0 0 0 / 85%);
+  transition: box-shadow 180ms ease, transform 180ms ease;
+}
+
+.chart-card:hover {
+  box-shadow:
+    0 18px 32px rgb(0 0 0 / 15%),
+    0 4px 0 rgb(0 0 0 / 95%);
+  transform: translateY(-2px);
+}
+
+.pill-nav-enter {
+  animation: pill-nav-enter 420ms var(--pill-ease) both;
+}
+
+.pill-nav-logo {
+  align-items: center;
+  background: var(--pill-color);
+  border-radius: 999px;
+  display: inline-flex;
+  font-weight: 800;
+  height: 30px;
+  justify-content: center;
+  min-width: 30px;
+  padding: 0 10px;
+}
+
+.pill-nav-items {
+  display: flex;
+  gap: 3px;
+}
+
+.pill-nav-item {
+  border-radius: 999px;
+  color: var(--pill-color);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 8px 12px;
+  text-decoration: none;
+  transition:
+    background-color 180ms var(--pill-ease),
+    color 180ms var(--pill-ease),
+    transform 180ms var(--pill-ease);
+}
+
+.pill-nav-item:hover,
+.pill-nav-item.is-active {
+  background: var(--pill-color);
+  color: var(--pill-text);
+  transform: translateY(-1px);
+}
+
+.pill-nav-item:hover {
+  background: var(--pill-base);
+  color: var(--pill-hover-text);
+}
+
+@keyframes pill-nav-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 button,

@@ -21,6 +21,20 @@ def _post_outreach(payload: dict[str, object]):
     return asyncio.run(request_outreach())
 
 
+def _get(path: str):
+    """Send one GET request against the in-process ASGI app."""
+
+    async def request():
+        transport = ASGITransport(app=app)
+        async with AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            return await client.get(path)
+
+    return asyncio.run(request())
+
+
 def _valid_payload() -> dict[str, object]:
     """Return one valid privacy-safe outreach request."""
     return {
@@ -70,6 +84,17 @@ def test_historical_outreach_draft_rejects_unsupported_label_type() -> None:
     response = _post_outreach(payload)
 
     assert response.status_code == 422
+
+
+def test_historical_model_metrics_route_returns_matrix() -> None:
+    """Expose model metrics used by the dashboard KPI and matrix cards."""
+    response = _get("/historical/model-metrics")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["training_rows"] > 0
+    assert payload["labels"] == ["Other", "Converted", "Qualified"]
+    assert len(payload["confusion_matrix"]) == 3
 
 
 def test_historical_outreach_draft_reports_unconfigured_provider(

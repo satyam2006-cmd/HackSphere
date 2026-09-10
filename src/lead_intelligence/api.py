@@ -15,12 +15,14 @@ from lead_intelligence.historical_xgboost import predict_historical_xgboost_labe
 from lead_intelligence.lead_store import (
     get_default_model,
     get_lead_by_id,
+    get_model_metrics,
     load_synthetic_leads,
 )
 from lead_intelligence.schemas import (
     HealthResponse,
     HistoricalOutreachDraftRequest,
     HistoricalOutreachDraftResponse,
+    HistoricalModelMetricsResponse,
     HistoricalPredictionRequest,
     HistoricalPredictionResponse,
     LeadItem,
@@ -72,6 +74,16 @@ def health() -> HealthResponse:
     """Report whether the API process is ready to accept requests."""
 
     return HealthResponse(status="ok", version=app.version)
+
+
+@app.get(
+    "/historical/model-metrics",
+    response_model=HistoricalModelMetricsResponse,
+    tags=["prediction"],
+)
+def historical_model_metrics() -> HistoricalModelMetricsResponse:
+    """Return the loaded model's matrix and training accuracy for review."""
+    return HistoricalModelMetricsResponse(**get_model_metrics())
 
 
 @app.post(
