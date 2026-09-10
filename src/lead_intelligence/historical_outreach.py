@@ -19,6 +19,13 @@ def build_historical_outreach_prompt(
     sales_unit: str,
     priority: str,
     predicted_label: int,
+    lead_category: str | None = None,
+    lead_score: int | None = None,
+    confidence_level: str | None = None,
+    primary_driver: str | None = None,
+    positive_evidence: list[str] | None = None,
+    negative_evidence: list[str] | None = None,
+    lock_strategy: str | None = None,
 ) -> str:
     """Build a privacy-safe outreach drafting prompt from reconstructed lead context."""
     fields = {
@@ -48,6 +55,13 @@ def build_historical_outreach_prompt(
             "priority": priority.strip(),
             "historical_predicted_label": predicted_label,
             "historical_class_context": class_context,
+            "lead_category": lead_category,
+            "lead_score": lead_score,
+            "confidence_level": confidence_level,
+            "primary_driver": primary_driver,
+            "positive_evidence": positive_evidence or [],
+            "negative_evidence": negative_evidence or [],
+            "lock_strategy": lock_strategy,
         },
         ensure_ascii=False,
         sort_keys=True,

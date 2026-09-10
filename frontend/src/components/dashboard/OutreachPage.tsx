@@ -53,7 +53,7 @@ export function OutreachPage({
                 <span className="min-w-0">
                   <span className="block truncate text-xs font-bold">{lead.name}</span>
                   <span className="mt-1 block text-[11px] opacity-60">
-                    {Math.round(lead.conversion_probability * 100)}% likelihood
+                    {lead.lead_category || lead.predicted_class} · {Math.round(lead.conversion_probability * 100)}% · {lead.confidence_level || `${Math.round(lead.confidence * 100)}% confidence`}
                   </span>
                 </span>
               </Button>
@@ -81,9 +81,9 @@ export function OutreachPage({
             </div>
             <div className="grid content-center gap-3">
               {[
-                ["20", "Scored leads"],
-                ["18", "Model features"],
-                ["Local", "Draft provider"],
+                [String(leads.length), "Scored leads"],
+                [String(leads.reduce((total, lead) => total + (lead.positive_evidence?.length ?? 0), 0)), "Positive signals"],
+                [String(leads.reduce((total, lead) => total + (lead.negative_evidence?.length ?? 0), 0)), "Risk signals"],
               ].map(([value, label]) => (
                 <div key={label} className="rounded-xl border border-black/10 bg-black/[0.03] p-4">
                   <p className="text-xl font-bold">{value}</p>

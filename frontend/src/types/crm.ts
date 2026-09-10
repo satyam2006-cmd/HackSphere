@@ -21,6 +21,16 @@ export interface LeadItem {
   predicted_class: string;
   conversion_probability: number;
   confidence: number;
+  lead_score?: number;
+  lead_category?: "Hot" | "Warm" | "Cold";
+  confidence_level?: "Very High" | "High" | "Moderate" | "Low";
+  primary_driver?: string;
+  positive_evidence?: string[];
+  negative_evidence?: string[];
+  lock_strategy?: string;
+  total_visits?: number;
+  total_time_on_website?: number;
+  page_views_per_visit?: number;
 }
 
 export interface LeadListResponse {

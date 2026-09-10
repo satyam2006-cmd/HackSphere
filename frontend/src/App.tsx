@@ -1,11 +1,11 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { PillNav } from "@/components/layout/PillNav";
 import { KPIStats } from "@/components/dashboard/KPIStats";
 import { LeadsTable } from "@/components/dashboard/LeadsTable";
 import { LeadDetails } from "@/components/dashboard/LeadDetails";
 import { OutreachPage } from "@/components/dashboard/OutreachPage";
 import { ConversionPanel } from "@/components/dashboard/ConversionPanel";
-import { LeadItem, ModelMetrics, OutreachDraftState, LeadListResponse } from "@/types/crm";
+import { LeadItem, ModelMetrics, OutreachDraftState, LeadListResponse, InjectedPipelineResponse, ScoredLead } from "@/types/crm";
 import {
   Sparkles,
   Download,
@@ -22,6 +22,10 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<LeadItem | null>(null);
   const [modelMetrics, setModelMetrics] = useState<ModelMetrics | null>(null);
+  const [intelligenceLeads, setIntelligenceLeads] = useState<LeadItem[]>([]);
+  const [uploadedScoredLeads, setUploadedScoredLeads] = useState<ScoredLead[]>([]);
+  const [uploadedRawInput, setUploadedRawInput] = useState("");
+  const inputFileRef = useRef<HTMLInputElement>(null);
 
   // Filters & Sorting state
   const [searchQuery, setSearchQuery] = useState("");
@@ -103,6 +107,13 @@ export function App() {
           sales_unit: lead.sales_unit || "Sales Unit",
           priority: lead.priority,
           predicted_label: lead.predicted_label,
+          lead_category: lead.lead_category,
+          lead_score: lead.lead_score,
+          confidence_level: lead.confidence_level,
+          primary_driver: lead.primary_driver,
+          positive_evidence: lead.positive_evidence ?? [],
+          negative_evidence: lead.negative_evidence ?? [],
+          lock_strategy: lead.lock_strategy,
         }),
       });
 
@@ -122,6 +133,108 @@ export function App() {
         error: err instanceof Error ? err.message : "Generation failed",
       });
     }
+  };
+
+  const mapScoredLeadToLeadItem = (lead: ScoredLead): LeadItem => ({
+    object_id: lead.lead_id,
+    lead_id: lead.lead_id,
+    name: lead.contact_name || lead.lead_id,
+    account_name: lead.company || "Scored account",
+    contact_name: lead.contact_name || "",
+    job_title: lead.job_title || "",
+    status: lead.lead_quality || lead.lead_category,
+    source: lead.lead_source || lead.lead_origin || "Intelligence pipeline",
+    priority: lead.lead_category === "Hot" ? "High" : lead.lead_category === "Warm" ? "Normal" : "Low",
+    start_date: "",
+    end_date: "",
+    sales_unit: "",
+    sales_territory: lead.country || "",
+    owner_name: "",
+    note: lead.primary_driver || "",
+    features: {},
+    predicted_label: lead.lead_category === "Hot" ? 1 : lead.lead_category === "Warm" ? 2 : 0,
+    predicted_class: lead.lead_category,
+    conversion_probability: lead.predicted_probability,
+    confidence: lead.confidence_level === "Very High" ? 1 : lead.confidence_level === "High" ? 0.8 : lead.confidence_level === "Moderate" ? 0.6 : 0.35,
+    lead_score: lead.lead_score,
+    lead_category: lead.lead_category,
+    confidence_level: lead.confidence_level,
+    primary_driver: lead.primary_driver,
+    positive_evidence: lead.positive_evidence,
+    negative_evidence: lead.negative_evidence,
+    lock_strategy: lead.lock_strategy,
+    total_visits: lead.total_visits,
+    total_time_on_website: lead.total_time_on_website,
+    page_views_per_visit: lead.page_views_per_visit,
+  });
+
+  const handleScoredLeadsChange = (scoredLeads: ScoredLead[]) => {
+    const mappedLeads = scoredLeads.map(mapScoredLeadToLeadItem);
+    setIntelligenceLeads(mappedLeads);
+    setUploadedScoredLeads(scoredLeads);
+  };
+
+  const handleInputFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const raw = String(reader.result ?? "").trim();
+        if (!raw) throw new Error("The selected file is empty");
+
+        const payload = raw.startsWith("[") || raw.startsWith("{")
+          ? { leads: Array.isArray(JSON.parse(raw)) ? JSON.parse(raw) : [JSON.parse(raw)] }
+          : { csv_text: raw };
+        const response = await fetch("/conversion/inject-pipeline", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const body = await response.json();
+        if (!response.ok) {
+          throw new Error(body.detail || `File scoring failed (${response.status})`);
+        }
+
+        const result = body as InjectedPipelineResponse;
+        setUploadedRawInput(raw);
+        setUploadedScoredLeads(result.leads);
+        const uploadedLeads: LeadItem[] = result.leads.map((lead) => ({
+          object_id: lead.lead_id,
+          lead_id: lead.lead_id,
+          name: lead.contact_name || lead.lead_id,
+          account_name: lead.company || "Uploaded account",
+          contact_name: lead.contact_name || "",
+          job_title: lead.job_title || "",
+          status: lead.lead_quality || lead.lead_category,
+          source: lead.lead_source || lead.lead_origin || "Uploaded file",
+          priority: lead.lead_category === "Hot" ? "High" : lead.lead_category === "Warm" ? "Normal" : "Low",
+          start_date: "",
+          end_date: "",
+          sales_unit: "",
+          sales_territory: lead.country || "",
+          owner_name: "",
+          note: lead.primary_driver || "",
+          features: {},
+          predicted_label: lead.lead_category === "Hot" ? 1 : lead.lead_category === "Warm" ? 2 : 0,
+          predicted_class: lead.lead_category,
+          conversion_probability: lead.predicted_probability,
+          confidence: lead.confidence_level === "Very High" ? 1 : lead.confidence_level === "High" ? 0.8 : lead.confidence_level === "Moderate" ? 0.6 : 0.35,
+        }));
+        setLeads(uploadedLeads);
+        setIntelligenceLeads(uploadedLeads);
+        setSelectedLead(null);
+        setOutreachDraft({ status: "idle" });
+        setError(null);
+        setCurrentTab("dashboard");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to score uploaded file");
+      }
+    };
+    reader.onerror = () => setError("Could not read the selected file");
+    reader.readAsText(file);
   };
 
   // When selected lead changes, reset outreach draft
@@ -180,14 +293,15 @@ export function App() {
           />
 
           <div className="flex items-center gap-3">
+            <input ref={inputFileRef} type="file" accept=".csv,.json,text/csv,application/json" onChange={handleInputFile} className="hidden" />
             <Button
               variant="outline"
               size="sm"
               type="button"
-              onClick={() => undefined}
+              onClick={() => inputFileRef.current?.click()}
               className="text-xs h-9 border-black/20 hover:bg-black hover:text-white text-black"
             >
-              Input
+              Input CSV / JSON
             </Button>
             <Button
               variant="outline"
@@ -240,7 +354,7 @@ export function App() {
 
             {currentTab === "outreach" ? (
               <OutreachPage
-                leads={leads}
+                leads={intelligenceLeads.length > 0 ? intelligenceLeads : leads}
                 selectedLead={selectedLead}
                 outreachDraft={outreachDraft}
                 onSelectLead={handleSelectLead}
@@ -248,7 +362,11 @@ export function App() {
               />
             ) : currentTab === "intelligence" ? (
               <section id="intelligence">
-                <ConversionPanel />
+                <ConversionPanel
+                  onScoredLeadsChange={handleScoredLeadsChange}
+                  sharedScoredLeads={uploadedScoredLeads}
+                  sharedRawInput={uploadedRawInput}
+                />
               </section>
             ) : (
               <>

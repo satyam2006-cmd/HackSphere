@@ -46,6 +46,9 @@ import {
 
 interface ConversionPanelProps {
   className?: string;
+  onScoredLeadsChange?: (leads: ScoredLead[]) => void;
+  sharedScoredLeads?: ScoredLead[];
+  sharedRawInput?: string;
 }
 
 const categoryStyles: Record<
@@ -110,7 +113,18 @@ function LockChanceBar({ percentage, category }: { percentage: number; category:
   );
 }
 
-export function ConversionPanel({ className = "" }: ConversionPanelProps) {
+function averageLockChance(leads: ScoredLead[], category: ScoredLead["lead_category"]): number {
+  const matching = leads.filter((lead) => lead.lead_category === category);
+  if (matching.length === 0) return 0;
+  return matching.reduce((sum, lead) => sum + lead.lock_chance_pct, 0) / matching.length;
+}
+
+export function ConversionPanel({
+  className = "",
+  onScoredLeadsChange,
+  sharedScoredLeads = [],
+  sharedRawInput = "",
+}: ConversionPanelProps) {
   // Modes: "verification20" | "inject" | "full"
   const [dataSource, setDataSource] = useState<"verification20" | "inject" | "full">("verification20");
   const [leads, setLeads] = useState<ScoredLead[]>([]);
@@ -138,6 +152,28 @@ export function ConversionPanel({ className = "" }: ConversionPanelProps) {
   const [showCleaningDetails, setShowCleaningDetails] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    if (sharedScoredLeads.length === 0) return;
+    setDataSource("inject");
+    setLeads(sharedScoredLeads);
+    setRawInputText(sharedRawInput);
+    setDemoSummary({
+      total: sharedScoredLeads.length,
+      hot_count: sharedScoredLeads.filter((lead) => lead.lead_category === "Hot").length,
+      warm_count: sharedScoredLeads.filter((lead) => lead.lead_category === "Warm").length,
+      cold_count: sharedScoredLeads.filter((lead) => lead.lead_category === "Cold").length,
+      hot_avg_lock_chance: averageLockChance(sharedScoredLeads, "Hot"),
+      warm_avg_lock_chance: averageLockChance(sharedScoredLeads, "Warm"),
+      cold_avg_lock_chance: averageLockChance(sharedScoredLeads, "Cold"),
+    });
+    setCategoryCounts({
+      all: sharedScoredLeads.length,
+      hot: sharedScoredLeads.filter((lead) => lead.lead_category === "Hot").length,
+      warm: sharedScoredLeads.filter((lead) => lead.lead_category === "Warm").length,
+      cold: sharedScoredLeads.filter((lead) => lead.lead_category === "Cold").length,
+    });
+  }, [sharedRawInput, sharedScoredLeads]);
+
   const fetchVerification20 = async () => {
     try {
       setLoading(true);
@@ -154,6 +190,7 @@ export function ConversionPanel({ className = "" }: ConversionPanelProps) {
       const metricsData: ConversionMetrics = await metricsRes.json();
 
       setLeads(demoData.leads);
+      onScoredLeadsChange?.(demoData.leads);
       setDemoSummary(demoData.summary);
       setCategoryCounts({
         all: demoData.summary.total,
@@ -192,6 +229,7 @@ export function ConversionPanel({ className = "" }: ConversionPanelProps) {
       const metricsData: ConversionMetrics = await metricsRes.json();
 
       setLeads(leadsData.leads);
+      onScoredLeadsChange?.(leadsData.leads);
       if (leadsData.category_counts) {
         setCategoryCounts(leadsData.category_counts);
       }
@@ -212,6 +250,7 @@ export function ConversionPanel({ className = "" }: ConversionPanelProps) {
 
       const data: PipelineDemoResponse = await res.json();
       setLeads(data.leads);
+      onScoredLeadsChange?.(data.leads);
       setDemoSummary(data.summary);
       setCategoryCounts({
         all: data.summary.total,
@@ -292,6 +331,7 @@ export function ConversionPanel({ className = "" }: ConversionPanelProps) {
 
       const data: InjectedPipelineResponse = await res.json();
       setLeads(data.leads);
+      onScoredLeadsChange?.(data.leads);
       setDemoSummary(data.summary);
       setCleaningReport(data.cleaning_report);
       setCategoryCounts({
@@ -310,6 +350,7 @@ export function ConversionPanel({ className = "" }: ConversionPanelProps) {
   };
 
   useEffect(() => {
+    if (sharedScoredLeads.length > 0) return;
     if (dataSource === "verification20") {
       fetchVerification20();
     } else if (dataSource === "full") {
@@ -319,7 +360,7 @@ export function ConversionPanel({ className = "" }: ConversionPanelProps) {
         loadSampleRawDataset();
       }
     }
-  }, [dataSource, category]);
+  }, [dataSource, category, sharedScoredLeads.length]);
 
   // Download results as CSV or JSON
   const downloadResults = (format: "csv" | "json") => {

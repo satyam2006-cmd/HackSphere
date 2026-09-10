@@ -49,6 +49,13 @@ class HistoricalOutreachDraftRequest(BaseModel):
     sales_unit: StrictText
     priority: StrictText
     predicted_label: StrictHistoricalLabel
+    lead_category: str | None = None
+    lead_score: int | None = Field(default=None, ge=0, le=100)
+    confidence_level: str | None = None
+    primary_driver: str | None = None
+    positive_evidence: list[str] = Field(default_factory=list)
+    negative_evidence: list[str] = Field(default_factory=list)
+    lock_strategy: str | None = None
 
     @model_validator(mode="after")
     def validate_non_blank_context(self) -> HistoricalOutreachDraftRequest:
@@ -279,4 +286,3 @@ __all__ = [
     "StrictHistoricalLabel",
     "StrictText",
 ]
-

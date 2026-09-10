@@ -52,41 +52,8 @@ export function LeadDetails({
     ? (editableDraft || outreachDraft.draft) 
     : "";
 
-  // Features evidence breakdown
-  const featureEvidence = [
-    {
-      name: "Due Day Urgency",
-      val: lead.features["due_day"] ? `${lead.features["due_day"]} days` : "Standard",
-      impact: "High Impact",
-      positive: true,
-    },
-    {
-      name: "Sealing Demand Amount",
-      val: lead.features["Sealing_Demand_Amount__Currency"] 
-        ? `$${Math.round(lead.features["Sealing_Demand_Amount__Currency"]).toLocaleString()}` 
-        : "$12,000",
-      impact: "High Impact",
-      positive: true,
-    },
-    {
-      name: "Inquiry Note Context",
-      val: lead.features["Note_Label"] ? "Technical Spec Request" : "General Info",
-      impact: "Medium Impact",
-      positive: lead.features["Note_Label"] === 1,
-    },
-    {
-      name: "Priority Index",
-      val: lead.priority,
-      impact: "Direct Weight",
-      positive: lead.priority.toLowerCase() === "high",
-    },
-    {
-      name: "Sales Unit Alignment",
-      val: lead.sales_unit || "Central Unit",
-      impact: "Territory Factor",
-      positive: true,
-    },
-  ];
+  const positiveEvidence = lead.positive_evidence ?? [];
+  const negativeEvidence = lead.negative_evidence ?? [];
 
   return (
     <div className={`w-full shrink-0 bg-white border border-black/10 rounded-2xl flex flex-col min-h-[620px] shadow-sm z-10 transition-all duration-300 ${className}`}>
@@ -134,17 +101,13 @@ export function LeadDetails({
               Target: {lead.predicted_class}
             </p>
             <p className="text-xs text-slate-300 leading-relaxed">
-              {lead.predicted_label === 1
-                ? "High probability of conversion based on account profile and sealing demand indicators."
-                : lead.predicted_label === 2
-                ? "Qualified prospect with strong fit signals. Immediate sales outreach advised."
-                : "Standard lead without prior qualification signals. Standard nurturing flow recommended."}
+              {lead.primary_driver || "The model did not return a primary evidence signal for this lead."}
             </p>
           </div>
 
           <div className="mt-4 pt-3 border-t border-indigo-800/40 flex items-center justify-between text-xs text-indigo-200">
             <span>Model Confidence: {Math.round(lead.confidence * 100)}%</span>
-            <span>Schema: 18 Features</span>
+            <span>{lead.lead_score !== undefined ? `Lead score: ${lead.lead_score}/100` : "Historical scoring"}</span>
           </div>
         </div>
 
@@ -155,22 +118,45 @@ export function LeadDetails({
             Decision Factors (Feature Evidence)
           </h3>
           <div className="space-y-2">
-            {featureEvidence.map((factor, idx) => (
+            {positiveEvidence.map((evidence, idx) => (
               <div
-                key={idx}
+                key={`positive-${idx}`}
                 className="p-2.5 rounded-xl border border-slate-100 bg-slate-50/70 flex items-center justify-between text-xs"
               >
                 <div>
-                  <p className="font-semibold text-slate-800">{factor.name}</p>
-                  <p className="text-[11px] text-slate-500 font-medium">{factor.val}</p>
+                  <p className="font-semibold text-slate-800">Positive evidence</p>
+                  <p className="text-[11px] text-slate-500 font-medium">{evidence}</p>
                 </div>
-                <span className="text-[11px] font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
-                  {factor.impact}
+                <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                  Supports
                 </span>
               </div>
             ))}
+            {negativeEvidence.map((evidence, idx) => (
+              <div key={`negative-${idx}`} className="p-2.5 rounded-xl border border-slate-100 bg-slate-50/70 flex items-center justify-between text-xs">
+                <div>
+                  <p className="font-semibold text-slate-800">Negative evidence</p>
+                  <p className="text-[11px] text-slate-500 font-medium">{evidence}</p>
+                </div>
+                <span className="text-[11px] font-semibold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full">
+                  Risk
+                </span>
+              </div>
+            ))}
+            {positiveEvidence.length === 0 && negativeEvidence.length === 0 && (
+              <div className="rounded-xl border border-dashed border-slate-200 p-3 text-xs text-slate-500">
+                No evidence was returned by the active scoring pipeline.
+              </div>
+            )}
           </div>
         </div>
+
+        {lead.lock_strategy && (
+          <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-3 text-xs">
+            <p className="font-bold text-indigo-900">Recommended lock strategy</p>
+            <p className="mt-1 text-indigo-800">{lead.lock_strategy}</p>
+          </div>
+        )}
 
         {/* Outreach Draft Section */}
         <div className="space-y-3">

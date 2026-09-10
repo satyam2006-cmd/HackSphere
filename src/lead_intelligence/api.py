@@ -148,6 +148,13 @@ def historical_outreach_draft(
         sales_unit=request.sales_unit,
         priority=request.priority,
         predicted_label=request.predicted_label,
+        lead_category=request.lead_category,
+        lead_score=request.lead_score,
+        confidence_level=request.confidence_level,
+        primary_driver=request.primary_driver,
+        positive_evidence=request.positive_evidence,
+        negative_evidence=request.negative_evidence,
+        lock_strategy=request.lock_strategy,
     )
 
     provider = os.getenv("LLM_PROVIDER", "disabled")
