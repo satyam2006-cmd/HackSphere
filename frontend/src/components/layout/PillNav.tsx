@@ -58,20 +58,18 @@ export function PillNav({
         {items.map((item) => {
           const active = item.href === activeHref;
           return (
-            <a
+            <button
               key={item.href}
-              href={item.href}
               aria-current={active ? "page" : undefined}
+              type="button"
               className={`pill-nav-item ${active ? "is-active" : ""}`}
               onClick={(event) => {
-                if (onNavigate) {
-                  event.preventDefault();
-                  onNavigate(item.href);
-                }
+                event.preventDefault();
+                onNavigate?.(item.href);
               }}
             >
               {item.label}
-            </a>
+            </button>
           );
         })}
       </div>

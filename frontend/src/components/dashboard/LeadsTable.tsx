@@ -34,6 +34,12 @@ interface LeadsTableProps {
   onPriorityFilterChange: (priority: string) => void;
   sortBy: string;
   onSortByChange: (sort: string) => void;
+  onApplyFilters: (filters: {
+    searchQuery: string;
+    statusFilter: string;
+    priorityFilter: string;
+    sortBy: string;
+  }) => void;
 }
 
 export function LeadsTable({
@@ -48,7 +54,13 @@ export function LeadsTable({
   onPriorityFilterChange,
   sortBy,
   onSortByChange,
+  onApplyFilters,
 }: LeadsTableProps) {
+  const topLeads = leads.slice(0, 10);
+  const [draftSearchQuery, setDraftSearchQuery] = useState(searchQuery);
+  const [draftStatusFilter, setDraftStatusFilter] = useState(statusFilter);
+  const [draftPriorityFilter, setDraftPriorityFilter] = useState(priorityFilter);
+  const [draftSortBy, setDraftSortBy] = useState(sortBy);
   const getPriorityBadge = (priority: string) => {
     switch (priority.toLowerCase()) {
       case "high":
@@ -96,8 +108,9 @@ export function LeadsTable({
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <Input
               placeholder="Search leads by name, company, source, sales unit..."
-              value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
+              value={draftSearchQuery}
+              onChange={(e) => setDraftSearchQuery(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
               className="pl-9 bg-white border-slate-200 text-sm focus-visible:ring-indigo-500"
             />
           </div>
@@ -106,9 +119,10 @@ export function LeadsTable({
         <div className="flex items-center gap-2 flex-wrap">
           {/* Priority filter */}
           <select
-            value={priorityFilter}
-            onChange={(e) => onPriorityFilterChange(e.target.value)}
+            value={draftPriorityFilter}
+            onChange={(e) => setDraftPriorityFilter(e.target.value)}
             className="text-xs h-9 px-3 rounded-lg border border-slate-200 bg-white font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+            onClick={(e) => e.stopPropagation()}
           >
             <option value="all">All Priorities</option>
             <option value="high">High Priority</option>
@@ -118,9 +132,10 @@ export function LeadsTable({
 
           {/* Status filter */}
           <select
-            value={statusFilter}
-            onChange={(e) => onStatusFilterChange(e.target.value)}
+            value={draftStatusFilter}
+            onChange={(e) => setDraftStatusFilter(e.target.value)}
             className="text-xs h-9 px-3 rounded-lg border border-slate-200 bg-white font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+            onClick={(e) => e.stopPropagation()}
           >
             <option value="all">All Statuses</option>
             <option value="unqualified">Unqualified</option>
@@ -130,15 +145,32 @@ export function LeadsTable({
 
           {/* Sort By */}
           <select
-            value={sortBy}
-            onChange={(e) => onSortByChange(e.target.value)}
+            value={draftSortBy}
+            onChange={(e) => setDraftSortBy(e.target.value)}
             className="text-xs h-9 px-3 rounded-lg border border-slate-200 bg-white font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+            onClick={(e) => e.stopPropagation()}
           >
             <option value="conversion_probability">Sort: Likelihood (Highest)</option>
             <option value="priority">Sort: Priority</option>
             <option value="name">Sort: Name</option>
             <option value="status">Sort: Status</option>
           </select>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() =>
+              onApplyFilters({
+                searchQuery: draftSearchQuery,
+                statusFilter: draftStatusFilter,
+                priorityFilter: draftPriorityFilter,
+                sortBy: draftSortBy,
+              })
+            }
+            className="h-9 bg-black px-3 text-xs text-white hover:bg-black/80"
+          >
+            <Filter className="mr-1.5 h-3.5 w-3.5" />
+            Filter
+          </Button>
         </div>
       </div>
 
@@ -156,7 +188,7 @@ export function LeadsTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {leads.length === 0 ? (
+            {topLeads.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-12 text-slate-500">
                   <div className="max-w-xs mx-auto space-y-2">
@@ -166,7 +198,7 @@ export function LeadsTable({
                 </TableCell>
               </TableRow>
             ) : (
-              leads.map((lead) => {
+              topLeads.map((lead) => {
                 const isSelected = selectedLead?.object_id === lead.object_id;
                 const percentage = Math.round(lead.conversion_probability * 100);
 
@@ -269,7 +301,7 @@ export function LeadsTable({
       
       {/* Footer stats */}
       <div className="p-3 border-t border-slate-100 text-xs text-slate-500 flex items-center justify-between bg-slate-50/40">
-        <span>Showing {leads.length} leads in queue</span>
+        <span>Showing {topLeads.length} of {leads.length} leads in queue</span>
         <span className="text-[11px] text-slate-400">Ranked by XGBoost multi:softprob conversion probability</span>
       </div>
     </div>

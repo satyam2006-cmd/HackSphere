@@ -96,7 +96,7 @@ export function KPIStats({ leads, metrics }: KPIStatsProps) {
       {stats.map((stat, i) => {
         const Icon = stat.icon;
         return (
-          <Card key={i} className="border-slate-200/80 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden group">
+          <Card key={i} className="chart-card border-slate-200/80 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden group">
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div className={`p-2.5 rounded-xl ${stat.accentBg} transition-transform group-hover:scale-105`}>
@@ -120,7 +120,7 @@ export function KPIStats({ leads, metrics }: KPIStatsProps) {
         );
       })}
       </div>
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+      <div className="mt-5 grid grid-cols-1 xl:grid-cols-3 gap-4">
         <Card className="chart-card border-slate-200/80 shadow-sm xl:col-span-2">
           <CardContent className="p-5">
             <div className="mb-4">
@@ -160,19 +160,19 @@ export function KPIStats({ leads, metrics }: KPIStatsProps) {
                 <PieChart>
                   <defs>
                     <linearGradient id="donutOther" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#050505" />
-                      <stop offset="100%" stopColor="#4a4a4a" />
+                      <stop offset="0%" stopColor="#686868" />
+                      <stop offset="100%" stopColor="#bdbdbd" />
                     </linearGradient>
                     <linearGradient id="donutConverted" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#333333" />
-                      <stop offset="100%" stopColor="#858585" />
+                      <stop offset="0%" stopColor="#9a9a9a" />
+                      <stop offset="100%" stopColor="#d0d0d0" />
                     </linearGradient>
                     <linearGradient id="donutQualified" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#8a8a8a" />
-                      <stop offset="100%" stopColor="#d4d4d4" />
+                      <stop offset="0%" stopColor="#c4c4c4" />
+                      <stop offset="100%" stopColor="#eeeeee" />
                     </linearGradient>
                   </defs>
-                  <Pie data={outcomeData} dataKey="value" nameKey="name" innerRadius={62} outerRadius={94} paddingAngle={4} stroke="#ffffff" strokeWidth={3}>
+                  <Pie data={outcomeData} dataKey="value" nameKey="name" innerRadius={62} outerRadius={94} paddingAngle={4} stroke="#ffffff" strokeOpacity={0.9} strokeWidth={3}>
                     {outcomeData.map((entry, index) => (
                       <Cell key={entry.name} fill={`url(#${["donutOther", "donutConverted", "donutQualified"][index]})`} />
                     ))}
