@@ -3,7 +3,9 @@
 import os
 
 import pandas as pd
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from xgboost import XGBClassifier
 
 from lead_intelligence.historical_features import HISTORICAL_FINAL_FEATURE_COLUMNS
@@ -23,6 +25,25 @@ app = FastAPI(
     summary="Privacy-safe lead scoring and outreach drafting",
     version="0.1.0",
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(
+    request: Request,
+    exc: RequestValidationError,
+) -> JSONResponse:
+    """Return stable validation details without serializing unsafe raw inputs."""
+
+    del request
+    detail = [
+        {
+            "type": error["type"],
+            "loc": error["loc"],
+            "msg": error["msg"],
+        }
+        for error in exc.errors()
+    ]
+    return JSONResponse(status_code=422, content={"detail": detail})
 
 
 @app.get("/", tags=["system"])

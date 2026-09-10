@@ -22,7 +22,7 @@ HISTORICAL_FINAL_STATUSES: Final[tuple[str, ...]] = (
 
 def reconstruct_final_three_class_target(leads: pd.DataFrame) -> pd.DataFrame:
     """Reproduce the final three-class target recovered from 2024 artifacts."""
-    required = (ID_COLUMN, STATUS_COLUMN, REASON_COLUMN)
+    required = (STATUS_COLUMN, REASON_COLUMN)
     missing = [column for column in required if column not in leads.columns]
     if missing:
         raise ValueError(f"leads is missing required columns: {', '.join(missing)}")

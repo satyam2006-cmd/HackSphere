@@ -1,6 +1,7 @@
 """Contract tests for the historical prediction API."""
 
 import asyncio
+import json
 
 import pandas as pd
 from httpx import ASGITransport, AsyncClient
@@ -29,12 +30,16 @@ def _post_prediction(payload: dict[str, object]):
     """Send one prediction request against the in-process ASGI app."""
 
     async def request_prediction():
-        transport = ASGITransport(app=app)
+        transport = ASGITransport(app=app, raise_app_exceptions=False)
         async with AsyncClient(
             transport=transport,
             base_url="http://testserver",
         ) as client:
-            return await client.post("/historical/predict", json=payload)
+            return await client.post(
+                "/historical/predict",
+                content=json.dumps(payload, allow_nan=True),
+                headers={"Content-Type": "application/json"},
+            )
 
     return asyncio.run(request_prediction())
 
