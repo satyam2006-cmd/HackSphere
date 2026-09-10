@@ -27,9 +27,12 @@ Start the FastAPI service on port `8000`, then run the dashboard:
 
 ```bash
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
+
+If `vite` is not recognized, install the frontend dependencies from this
+directory with `npm ci` before running the development server.
 
 During local development, Vite proxies `/historical/*` requests to
 `http://127.0.0.1:8000`, so the browser can use the outreach endpoint without
