@@ -109,7 +109,7 @@ export function App() {
       <section className="dashboard" aria-labelledby="dashboard-title">
         <header className="dashboard-header">
           <div>
-            <p className="eyebrow">2024 reconstruction</p>
+            <p className="eyebrow">HackSphere 2026</p>
             <h1 id="dashboard-title">Lead conversion review</h1>
             <p className="intro">
               Privacy-safe preview of the lead, prediction, and outreach review flow.
