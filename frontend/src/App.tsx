@@ -10,11 +10,12 @@ import {
   Download,
   RefreshCw,
   AlertCircle,
+  Filter,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function App() {
-  const [currentTab, setCurrentTab] = useState("leads");
+  const [currentTab, setCurrentTab] = useState("dashboard");
   const [leads, setLeads] = useState<LeadItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,13 +52,10 @@ export function App() {
       const data: LeadListResponse = await res.json();
       setLeads(data.leads);
 
-      // Default select the top ranked lead if none selected
-      if (!selectedLead && data.leads.length > 0) {
-        setSelectedLead(data.leads[0]);
-      } else if (selectedLead) {
+      if (selectedLead) {
         // Keep selected lead updated
         const updated = data.leads.find((l) => l.object_id === selectedLead.object_id);
-        if (updated) setSelectedLead(updated);
+        setSelectedLead(updated ?? null);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load leads");
@@ -69,6 +67,12 @@ export function App() {
   useEffect(() => {
     fetchLeads();
   }, [fetchLeads]);
+
+  useEffect(() => {
+    // Keep browser refreshes on the dashboard instead of restoring an old nav hash.
+    window.history.replaceState(null, "", window.location.pathname);
+    setCurrentTab("dashboard");
+  }, []);
 
   useEffect(() => {
     fetch("/historical/model-metrics")
@@ -127,7 +131,11 @@ export function App() {
 
   const handleNavigate = (href: string) => {
     const target = href.replace("#", "");
-    setCurrentTab(target === "dashboard" ? "dashboard" : target);
+    if (!["dashboard", "analytics", "leads", "outreach"].includes(target)) {
+      return;
+    }
+    setCurrentTab(target);
+    window.history.replaceState(null, "", window.location.pathname);
     const scrollTarget = target === "analytics" ? "dashboard" : target;
     document.getElementById(scrollTarget)?.scrollIntoView({ behavior: "smooth" });
   };
@@ -153,8 +161,8 @@ export function App() {
             logoAlt="HackSphere navigation"
             items={[
               { label: "Home", href: "#dashboard" },
-              { label: "Leads", href: "#leads" },
               { label: "Analytics", href: "#analytics" },
+              { label: "Leads", href: "#leads" },
               { label: "Outreach", href: "#outreach" },
             ]}
             activeHref={`#${currentTab === "dashboard" ? "dashboard" : currentTab}`}
@@ -170,6 +178,15 @@ export function App() {
           />
 
           <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              onClick={() => undefined}
+              className="text-xs h-9 border-black/20 hover:bg-black hover:text-white text-black"
+            >
+              Input
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -245,6 +262,12 @@ export function App() {
                     onPriorityFilterChange={setPriorityFilter}
                     sortBy={sortBy}
                     onSortByChange={setSortBy}
+                    onApplyFilters={(filters) => {
+                      setSearchQuery(filters.searchQuery);
+                      setStatusFilter(filters.statusFilter);
+                      setPriorityFilter(filters.priorityFilter);
+                      setSortBy(filters.sortBy);
+                    }}
                   />
                 </section>
               </>
