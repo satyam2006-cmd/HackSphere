@@ -168,6 +168,58 @@ def load_synthetic_leads() -> list[LeadItem]:
         conf = float(max(probabilities))
 
         pred_class = LABEL_NAMES.get(pred_label, "Other")
+        score_val = int(round(conv_prob * 100))
+        cat_val = (
+            "Hot" if score_val >= 70 or (pred_label in (1, 2) and conv_prob >= 0.55)
+            else "Warm" if score_val >= 35 or conv_prob >= 0.35
+            else "Cold"
+        )
+        conf_level = (
+            "Very High" if conf >= 0.85
+            else "High" if conf >= 0.65
+            else "Moderate" if conf >= 0.45
+            else "Low"
+        )
+
+        pos_ev: list[str] = []
+        neg_ev: list[str] = []
+
+        prio = row.get("Priority_Text") or ""
+        if prio in ("Immediate", "Urgent", "High"):
+            pos_ev.append(f"High Priority SLA: {prio}")
+        elif prio in ("Low", "Very Low"):
+            neg_ev.append(f"Low Priority Velocity: {prio}")
+
+        src = row.get("Source_Text") or ""
+        if src in ("Direct Inquiry", "Referral", "Partner", "Event", "Trade Fair"):
+            pos_ev.append(f"Inbound Quality Channel: {src}")
+        elif src in ("Cold Call", "Bought List", "Unknown"):
+            neg_ev.append(f"Outbound Channel Friction: {src}")
+
+        note_txt = (row.get("Note") or "").strip()
+        if note_txt:
+            if any(k in note_txt.lower() for k in ("pricing", "demo", "proposal", "budget", "decision", "urgent")):
+                pos_ev.append(f"Buying Signal in Notes: '{note_txt[:40]}'")
+            elif any(k in note_txt.lower() for k in ("not interested", "no budget", "postponed", "unresponsive")):
+                neg_ev.append(f"Objection in Notes: '{note_txt[:40]}'")
+
+        if conv_prob >= 0.6:
+            pos_ev.append(f"Conversion Signal: {int(round(conv_prob * 100))}% predicted probability")
+        elif conv_prob <= 0.3:
+            neg_ev.append(f"Risk Indicator: Low probability ({int(round(conv_prob * 100))}%)")
+
+        if not pos_ev and not neg_ev:
+            if cat_val in ("Hot", "Warm"):
+                pos_ev.append(f"Qualification Status: {pred_class} category alignment")
+            else:
+                neg_ev.append(f"Pipeline Velocity: {pred_class} category stage")
+
+        driver = pos_ev[0] if pos_ev else (neg_ev[0] if neg_ev else f"Category baseline: {cat_val}")
+        strat = (
+            "Accelerate executive demo and prepare formal quotation" if cat_val == "Hot"
+            else "Nurture with targeted product value assets & case studies" if cat_val == "Warm"
+            else "Automated re-engagement drip sequence"
+        )
 
         item = LeadItem(
             object_id=row.get("ObjectID") or f"SYN-LEAD-{idx:06d}",
@@ -190,6 +242,13 @@ def load_synthetic_leads() -> list[LeadItem]:
             predicted_class=pred_class,
             conversion_probability=round(conv_prob, 3),
             confidence=round(conf, 3),
+            lead_score=score_val,
+            lead_category=cat_val,
+            confidence_level=conf_level,
+            primary_driver=driver,
+            positive_evidence=pos_ev,
+            negative_evidence=neg_ev,
+            lock_strategy=strat,
         )
         leads.append(item)
 

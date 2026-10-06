@@ -118,8 +118,12 @@ export function KPIStats({ leads, metrics }: KPIStatsProps) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       {stats.map((stat, i) => {
         const Icon = stat.icon;
+        const isAlternate = i % 2 === 1;
         return (
-          <Card key={i} className="chart-card border-slate-200/80 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden group">
+          <Card
+            key={i}
+            className={`border-2 border-black ${isAlternate ? "border-dashed" : "border-solid"} rounded-2xl bg-white shadow-none transition-none overflow-hidden group`}
+          >
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div className={`p-2.5 rounded-xl ${stat.accentBg} transition-transform group-hover:scale-105`}>
@@ -144,7 +148,7 @@ export function KPIStats({ leads, metrics }: KPIStatsProps) {
       })}
       </div>
       <div className="mt-5 grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <Card className="chart-card border-slate-200/80 shadow-sm xl:col-span-2">
+        <Card className="border-2 border-black border-solid rounded-2xl bg-white shadow-none xl:col-span-2">
           <CardContent className="p-5">
             <div className="mb-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -179,7 +183,7 @@ export function KPIStats({ leads, metrics }: KPIStatsProps) {
           </CardContent>
         </Card>
 
-        <Card className="chart-card border-slate-200/80 shadow-sm">
+        <Card className="border-2 border-black border-dotted rounded-2xl bg-white shadow-none">
           <CardContent className="p-5">
             <div className="mb-1">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -217,7 +221,7 @@ export function KPIStats({ leads, metrics }: KPIStatsProps) {
           </CardContent>
         </Card>
 
-        <Card className="chart-card border-slate-200/80 shadow-sm xl:col-span-3">
+        <Card className="border-2 border-black border-solid rounded-2xl bg-white shadow-none xl:col-span-3">
           <CardContent className="p-5">
             <div className="mb-4 flex items-end justify-between">
               <div>

@@ -1,14 +1,24 @@
 import React, { useEffect, useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   ScoredLead,
-  ScoredLeadListResponse,
   PipelineDemoResponse,
   PipelineDemoSummary,
   CleaningReport,
   InjectedPipelineResponse,
   ConversionMetrics,
+  LeadItem,
 } from "@/types/crm";
 import {
   Flame,
@@ -16,102 +26,112 @@ import {
   Snowflake,
   Target,
   BarChart3,
-  Users,
   ChevronDown,
   ChevronUp,
-  Activity,
+  ChevronLeft,
+  ChevronRight,
   Zap,
-  Award,
-  Globe,
-  MapPin,
-  Briefcase,
-  Mail,
+  Building2,
+  Sparkles,
+  Upload,
+  FileText,
+  Download,
+  Check,
+  Cpu,
+  Search,
   Eye,
-  Clock,
   RefreshCw,
   Play,
   CheckCircle2,
   AlertTriangle,
   ArrowUpRight,
   ShieldCheck,
-  Building2,
-  Sparkles,
-  Upload,
-  FileText,
-  Download,
+  Clock,
+  Briefcase,
+  Award,
+  Globe,
+  MapPin,
+  Mail,
+  Activity,
   Filter,
-  Check,
-  Cpu,
 } from "lucide-react";
 
-interface ConversionPanelProps {
+export interface ConversionPanelProps {
   className?: string;
   onScoredLeadsChange?: (leads: ScoredLead[]) => void;
+  onInjectedPipelineResult?: (result: InjectedPipelineResponse, rawInput: string) => void;
+  onInspectLead?: (lead: LeadItem) => void;
   sharedScoredLeads?: ScoredLead[];
   sharedRawInput?: string;
+  sharedCleaningReport?: CleaningReport | null;
+  sharedSummary?: PipelineDemoSummary | null;
+  sharedExecutionMs?: number | null;
 }
 
-const categoryStyles: Record<
+export const mapScoredLeadToLeadItem = (lead: ScoredLead): LeadItem => ({
+  object_id: lead.lead_id,
+  lead_id: lead.lead_id,
+  name: lead.contact_name || lead.lead_id,
+  account_name: lead.company || "Scored account",
+  contact_name: lead.contact_name || "",
+  job_title: lead.job_title || "",
+  status: lead.lead_quality || lead.lead_category,
+  source: lead.lead_source || lead.lead_origin || "Intelligence pipeline",
+  priority: lead.lead_category === "Hot" ? "High" : lead.lead_category === "Warm" ? "Normal" : "Low",
+  start_date: "",
+  end_date: "",
+  sales_unit: "",
+  sales_territory: lead.country || "",
+  owner_name: "",
+  note: lead.primary_driver || "",
+  features: {},
+  predicted_label: lead.lead_category === "Hot" ? 1 : lead.lead_category === "Warm" ? 2 : 0,
+  predicted_class: lead.lead_category,
+  conversion_probability: lead.predicted_probability,
+  confidence: lead.confidence_level === "Very High" ? 1 : lead.confidence_level === "High" ? 0.8 : lead.confidence_level === "Moderate" ? 0.6 : 0.35,
+  lead_score: lead.lead_score,
+  lead_category: lead.lead_category,
+  confidence_level: lead.confidence_level,
+  primary_driver: lead.primary_driver,
+  positive_evidence: lead.positive_evidence,
+  negative_evidence: lead.negative_evidence,
+  lock_strategy: lead.lock_strategy,
+  total_visits: lead.total_visits,
+  total_time_on_website: lead.total_time_on_website,
+  page_views_per_visit: lead.page_views_per_visit,
+});
+
+const categoryBadges: Record<
   string,
   {
-    bg: string;
-    text: string;
-    ring: string;
-    barColor: string;
-    icon: React.ReactNode;
     badge: string;
+    icon: React.ReactNode;
+    barColor: string;
   }
 > = {
   Hot: {
-    bg: "bg-rose-50",
-    text: "text-rose-700",
-    ring: "ring-rose-200",
-    barColor: "bg-gradient-to-r from-rose-500 to-pink-500",
+    badge: "bg-rose-50 text-rose-700 border-rose-200",
     icon: <Flame className="h-3.5 w-3.5 text-rose-600" />,
-    badge: "bg-rose-100 text-rose-800",
+    barColor: "bg-rose-600",
   },
   Warm: {
-    bg: "bg-amber-50",
-    text: "text-amber-700",
-    ring: "ring-amber-200",
-    barColor: "bg-gradient-to-r from-amber-500 to-orange-500",
+    badge: "bg-amber-50 text-amber-700 border-amber-200",
     icon: <TrendingUp className="h-3.5 w-3.5 text-amber-600" />,
-    badge: "bg-amber-100 text-amber-800",
+    barColor: "bg-amber-500",
   },
   Cold: {
-    bg: "bg-sky-50",
-    text: "text-sky-700",
-    ring: "ring-sky-200",
-    barColor: "bg-gradient-to-r from-sky-400 to-indigo-400",
+    badge: "bg-sky-50 text-sky-700 border-sky-200",
     icon: <Snowflake className="h-3.5 w-3.5 text-sky-600" />,
-    badge: "bg-sky-100 text-sky-800",
+    barColor: "bg-sky-500",
   },
 };
 
 const confidenceBadges: Record<string, string> = {
-  "Very High": "bg-emerald-50 text-emerald-700 ring-emerald-200",
-  High: "bg-teal-50 text-teal-700 ring-teal-200",
-  Moderate: "bg-amber-50 text-amber-700 ring-amber-200",
-  Low: "bg-slate-50 text-slate-600 ring-slate-200",
+  "Very High": "bg-emerald-50 text-emerald-700 border-emerald-200",
+  High: "bg-teal-50 text-teal-700 border-teal-200",
+  Moderate: "bg-amber-50 text-amber-700 border-amber-200",
+  Low: "bg-slate-100 text-slate-600 border-slate-200",
 };
-
-function LockChanceBar({ percentage, category }: { percentage: number; category: string }) {
-  const style = categoryStyles[category] || categoryStyles.Cold;
-  return (
-    <div className="space-y-1 w-full">
-      <div className="flex items-center justify-between text-xs">
-        <span className="font-bold text-black">{percentage}%</span>
-        <span className="text-[10px] text-black/40 font-medium">lock chance</span>
-      </div>
-      <div className="h-2 w-full rounded-full bg-black/5 overflow-hidden">
-        <div
-          className={`h-full rounded-full ${style.barColor} transition-all duration-700`}
-          style={{ width: `${Math.min(100, Math.max(2, percentage))}%` }}
-        />
-      </div>
-    </div>
-  );
-}
 
 function averageLockChance(leads: ScoredLead[], category: ScoredLead["lead_category"]): number {
   const matching = leads.filter((lead) => lead.lead_category === category);
@@ -119,11 +139,24 @@ function averageLockChance(leads: ScoredLead[], category: ScoredLead["lead_categ
   return matching.reduce((sum, lead) => sum + lead.lock_chance_pct, 0) / matching.length;
 }
 
+export function formatPercent(val: number | string | undefined | null, maxDecimals = 3): string {
+  if (val === undefined || val === null || val === "") return "0%";
+  const num = typeof val === "number" ? val : parseFloat(String(val));
+  if (isNaN(num)) return "0%";
+  const rounded = Number(num.toFixed(maxDecimals));
+  return `${rounded}%`;
+}
+
 export function ConversionPanel({
   className = "",
   onScoredLeadsChange,
+  onInjectedPipelineResult,
+  onInspectLead,
   sharedScoredLeads = [],
   sharedRawInput = "",
+  sharedCleaningReport = null,
+  sharedSummary = null,
+  sharedExecutionMs = null,
 }: ConversionPanelProps) {
   // Modes: "verification20" | "inject" | "full"
   const [dataSource, setDataSource] = useState<"verification20" | "inject" | "full">("verification20");
@@ -144,7 +177,12 @@ export function ConversionPanel({
   const [lastExecutionMs, setLastExecutionMs] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [category, setCategory] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [expandedLead, setExpandedLead] = useState<string | null>(null);
+
+  // Pagination state for the intelligence table
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
   // Injection Studio State
   const [rawInputText, setRawInputText] = useState<string>("");
@@ -152,27 +190,45 @@ export function ConversionPanel({
   const [showCleaningDetails, setShowCleaningDetails] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Synchronize state when shared props update
   useEffect(() => {
     if (sharedScoredLeads.length === 0) return;
     setDataSource("inject");
     setLeads(sharedScoredLeads);
     setRawInputText(sharedRawInput);
-    setDemoSummary({
-      total: sharedScoredLeads.length,
-      hot_count: sharedScoredLeads.filter((lead) => lead.lead_category === "Hot").length,
-      warm_count: sharedScoredLeads.filter((lead) => lead.lead_category === "Warm").length,
-      cold_count: sharedScoredLeads.filter((lead) => lead.lead_category === "Cold").length,
-      hot_avg_lock_chance: averageLockChance(sharedScoredLeads, "Hot"),
-      warm_avg_lock_chance: averageLockChance(sharedScoredLeads, "Warm"),
-      cold_avg_lock_chance: averageLockChance(sharedScoredLeads, "Cold"),
-    });
-    setCategoryCounts({
-      all: sharedScoredLeads.length,
-      hot: sharedScoredLeads.filter((lead) => lead.lead_category === "Hot").length,
-      warm: sharedScoredLeads.filter((lead) => lead.lead_category === "Warm").length,
-      cold: sharedScoredLeads.filter((lead) => lead.lead_category === "Cold").length,
-    });
-  }, [sharedRawInput, sharedScoredLeads]);
+    if (sharedCleaningReport) {
+      setCleaningReport(sharedCleaningReport);
+    }
+    if (sharedExecutionMs !== null && sharedExecutionMs !== undefined) {
+      setLastExecutionMs(sharedExecutionMs);
+    }
+    if (sharedSummary) {
+      setDemoSummary(sharedSummary);
+      setCategoryCounts({
+        all: sharedSummary.total,
+        hot: sharedSummary.hot_count,
+        warm: sharedSummary.warm_count,
+        cold: sharedSummary.cold_count,
+      });
+    } else {
+      setDemoSummary({
+        total: sharedScoredLeads.length,
+        hot_count: sharedScoredLeads.filter((lead) => lead.lead_category === "Hot").length,
+        warm_count: sharedScoredLeads.filter((lead) => lead.lead_category === "Warm").length,
+        cold_count: sharedScoredLeads.filter((lead) => lead.lead_category === "Cold").length,
+        hot_avg_lock_chance: averageLockChance(sharedScoredLeads, "Hot"),
+        warm_avg_lock_chance: averageLockChance(sharedScoredLeads, "Warm"),
+        cold_avg_lock_chance: averageLockChance(sharedScoredLeads, "Cold"),
+      });
+      setCategoryCounts({
+        all: sharedScoredLeads.length,
+        hot: sharedScoredLeads.filter((lead) => lead.lead_category === "Hot").length,
+        warm: sharedScoredLeads.filter((lead) => lead.lead_category === "Warm").length,
+        cold: sharedScoredLeads.filter((lead) => lead.lead_category === "Cold").length,
+      });
+    }
+    setLoading(false);
+  }, [sharedRawInput, sharedScoredLeads, sharedCleaningReport, sharedSummary, sharedExecutionMs]);
 
   const fetchVerification20 = async () => {
     try {
@@ -222,10 +278,10 @@ export function ConversionPanel({
         fetch("/conversion/metrics"),
       ]);
 
-      if (!leadsRes.ok) throw new Error(`Scored leads: ${leadsRes.status}`);
-      if (!metricsRes.ok) throw new Error(`Metrics: ${metricsRes.status}`);
+      if (!leadsRes.ok) throw new Error(`Full leads query error: ${leadsRes.status}`);
+      if (!metricsRes.ok) throw new Error(`Metrics error: ${metricsRes.status}`);
 
-      const leadsData: ScoredLeadListResponse = await leadsRes.json();
+      const leadsData = await leadsRes.json();
       const metricsData: ConversionMetrics = await metricsRes.json();
 
       setLeads(leadsData.leads);
@@ -235,7 +291,7 @@ export function ConversionPanel({
       }
       setMetrics(metricsData);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load full lead intelligence");
+      setError(err instanceof Error ? err.message : "Failed to load full CRM leads");
     } finally {
       setLoading(false);
     }
@@ -245,9 +301,8 @@ export function ConversionPanel({
     try {
       setBenchmarking(true);
       setError(null);
-      const res = await fetch("/conversion/demo-pipeline-20/run", { method: "POST" });
-      if (!res.ok) throw new Error(`Pipeline run failed: ${res.status}`);
-
+      const res = await fetch("/conversion/demo-pipeline-20?run_live=true");
+      if (!res.ok) throw new Error(`Live benchmark failed: ${res.status}`);
       const data: PipelineDemoResponse = await res.json();
       setLeads(data.leads);
       onScoredLeadsChange?.(data.leads);
@@ -266,7 +321,6 @@ export function ConversionPanel({
     }
   };
 
-  // Load sample raw dataset from backend for instant testing
   const loadSampleRawDataset = async () => {
     try {
       setLoading(true);
@@ -282,30 +336,16 @@ export function ConversionPanel({
     }
   };
 
-  // Handle file upload (CSV or JSON)
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      setRawInputText(content);
-    };
-    reader.readAsText(file);
-  };
-
-  // Execute full cleaning & prediction pipeline on injected dataset
-  const executeInjectedPipeline = async () => {
+  const executeInjectedPipeline = async (overrideRaw?: unknown) => {
     try {
       setInjecting(true);
       setError(null);
 
+      const textToUse = typeof overrideRaw === "string" ? overrideRaw : rawInputText;
       let payload: { leads?: object[]; csv_text?: string } = {};
 
-      const trimmed = rawInputText.trim();
+      const trimmed = textToUse.trim();
       if (!trimmed) {
-        // Run with fallback sample
         payload = {};
       } else if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
         try {
@@ -332,6 +372,7 @@ export function ConversionPanel({
       const data: InjectedPipelineResponse = await res.json();
       setLeads(data.leads);
       onScoredLeadsChange?.(data.leads);
+      onInjectedPipelineResult?.(data, textToUse);
       setDemoSummary(data.summary);
       setCleaningReport(data.cleaning_report);
       setCategoryCounts({
@@ -349,6 +390,20 @@ export function ConversionPanel({
     }
   };
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = String(event.target?.result ?? "");
+      setRawInputText(content);
+      executeInjectedPipeline(content);
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
   useEffect(() => {
     if (sharedScoredLeads.length > 0) return;
     if (dataSource === "verification20") {
@@ -362,12 +417,11 @@ export function ConversionPanel({
     }
   }, [dataSource, category, sharedScoredLeads.length]);
 
-  // Download results as CSV or JSON
   const downloadResults = (format: "csv" | "json") => {
     if (leads.length === 0) return;
     let dataStr = "";
     let mimeType = "";
-    let fileName = `cleaned_scored_leads.${format}`;
+    const fileName = `cleaned_scored_leads.${format}`;
 
     if (format === "json") {
       dataStr = JSON.stringify({ cleaning_report: cleaningReport, summary: demoSummary, leads }, null, 2);
@@ -398,7 +452,7 @@ export function ConversionPanel({
         `"${l.job_title || ""}"`,
         l.lead_score,
         l.lead_category,
-        l.lock_chance_pct,
+        Number(Number(l.lock_chance_pct || 0).toFixed(3)),
         l.confidence_level,
         `"${(l.primary_driver || "").replace(/"/g, '""')}"`,
         `"${l.lead_origin || ""}"`,
@@ -420,101 +474,220 @@ export function ConversionPanel({
     URL.revokeObjectURL(url);
   };
 
-  const displayedLeads = leads.filter((l) => {
-    if (category === "all") return true;
-    return l.lead_category.toLowerCase() === category.toLowerCase();
+  // Filter leads based on Category & Search Query
+  const filteredLeads = leads.filter((l) => {
+    const matchesCategory =
+      category === "all" || l.lead_category.toLowerCase() === category.toLowerCase();
+    if (!matchesCategory) return false;
+
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      l.lead_id.toLowerCase().includes(q) ||
+      (l.contact_name || "").toLowerCase().includes(q) ||
+      (l.company || "").toLowerCase().includes(q) ||
+      (l.primary_driver || "").toLowerCase().includes(q) ||
+      (l.lead_origin || "").toLowerCase().includes(q) ||
+      (l.lead_source || "").toLowerCase().includes(q) ||
+      (l.lock_strategy || "").toLowerCase().includes(q) ||
+      (l.tags || "").toLowerCase().includes(q)
+    );
   });
 
+  // Reset page when filter or search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [category, searchQuery, leads.length]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredLeads.length / pageSize));
+  const startIndex = (currentPage - 1) * pageSize;
+  const displayedLeads = filteredLeads.slice(startIndex, startIndex + pageSize);
+
   return (
-    <div className={`space-y-4 ${className}`}>
-      {/* Top Header Card: Pipeline Status & Performance */}
-      {metrics && (
-        <Card className="border-black/5 shadow-sm overflow-hidden">
-          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 px-6 py-4 flex flex-wrap items-center justify-between gap-4 text-white">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md">
-                <Zap className="h-5 w-5 text-white" />
+    <div className={`space-y-6 ${className}`}>
+      {/* 1. TOP PIPELINE OVERVIEW: Clean Rectangular Black-Border Card */}
+      <div className="bg-white rounded-2xl border-2 border-black p-5 sm:p-6 shadow-none">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-black text-white">
+                <Sparkles className="h-3.5 w-3.5" />
+                Pipeline Engine
+              </span>
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Live XGBoost Active
+              </span>
+              {lastExecutionMs !== null && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                  Latency: {lastExecutionMs}ms
+                </span>
+              )}
+            </div>
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 pt-1">
+              End-to-End Conversion Intelligence Matrix
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-500 max-w-2xl leading-relaxed">
+              Automated missing data imputation, 158-dimension categorical encoding, and calibrated conversion likelihood with TreeSHAP decision factors.
+            </p>
+          </div>
+
+          {metrics && (
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              <div className="p-2.5 rounded-xl border-2 border-black bg-slate-50 text-center min-w-[90px]">
+                <p className="text-[10px] uppercase font-bold text-slate-500">ROC-AUC</p>
+                <p className="text-sm font-black text-black">{(metrics.roc_auc_score * 100).toFixed(1)}%</p>
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-base font-bold text-white tracking-tight">{metrics.model_name}</h3>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                    <ShieldCheck className="h-3 w-3" /> Live Pipeline Ready
-                  </span>
-                </div>
-                <p className="text-xs text-white/60">
-                  End-to-End XGBoost Classification · Automatic Missing Data Imputation · TreeSHAP Attribution · 3-Class Conversion Tiers
-                </p>
+              <div className="p-2.5 rounded-xl border-2 border-black bg-slate-50 text-center min-w-[90px]">
+                <p className="text-[10px] uppercase font-bold text-slate-500">F1-Score</p>
+                <p className="text-sm font-black text-black">{(metrics.f1_score * 100).toFixed(1)}%</p>
+              </div>
+              <div className="p-2.5 rounded-xl border-2 border-black bg-slate-50 text-center min-w-[90px]">
+                <p className="text-[10px] uppercase font-bold text-slate-500">Optimal Cut</p>
+                <p className="text-sm font-black text-black">{(metrics.threshold * 100).toFixed(0)}%</p>
               </div>
             </div>
+          )}
+        </div>
+      </div>
 
-            <div className="flex items-center gap-2">
-              <span className="px-3 py-1 rounded-lg text-xs font-semibold bg-white/10 text-white border border-white/15">
-                ROC-AUC {(metrics.roc_auc_score * 100).toFixed(1)}%
+      {/* 2. THREE-TIER CONVERSION KPI CARDS (Alternating Solid & Dashed 2px Black Borders) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Hot Leads Card */}
+        <div className="bg-white rounded-2xl border-2 border-black border-solid p-5 shadow-none flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-rose-50 border border-rose-200">
+                  <Flame className="h-5 w-5 text-rose-600" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Hot Tier</h3>
+                  <p className="text-[11px] text-slate-500">&ge; 80% Conversion Score</p>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                {categoryCounts.hot} leads
               </span>
-              <span className="px-3 py-1 rounded-lg text-xs font-semibold bg-white/10 text-white border border-white/15">
-                F1-Score {(metrics.f1_score * 100).toFixed(1)}%
-              </span>
-              <span className="px-3 py-1 rounded-lg text-xs font-semibold bg-white/10 text-white border border-white/15">
-                Recall {(metrics.recall * 100).toFixed(1)}%
-              </span>
+            </div>
+
+            <div className="space-y-1 mt-4">
+              <p className="text-[11px] uppercase tracking-wider font-semibold text-slate-400">Average Lock Chance</p>
+              <p className="text-3xl font-black text-slate-900">
+                {demoSummary ? `${demoSummary.hot_avg_lock_chance.toFixed(1)}%` : "80 - 99%"}
+              </p>
             </div>
           </div>
 
-          <CardContent className="py-3 px-6 bg-slate-50/50 border-t border-black/5">
-            <div className="flex items-center justify-between flex-wrap gap-3">
-              <div className="flex items-center gap-4 text-xs text-black/60">
-                <span className="flex items-center gap-1.5 font-medium">
-                  <Target className="h-3.5 w-3.5 text-indigo-600" />
-                  Optimal Threshold: <strong className="text-black">{(metrics.threshold * 100).toFixed(0)}%</strong>
-                </span>
-                <span className="flex items-center gap-1.5 font-medium">
-                  <Flame className="h-3.5 w-3.5 text-rose-600" />
-                  Hot Tier: <strong className="text-black">&ge; {metrics.hot_threshold}%</strong>
-                </span>
-                <span className="flex items-center gap-1.5 font-medium">
-                  <TrendingUp className="h-3.5 w-3.5 text-amber-600" />
-                  Warm Tier: <strong className="text-black">{metrics.warm_threshold} - {metrics.hot_threshold - 1}%</strong>
-                </span>
-                <span className="flex items-center gap-1.5 font-medium">
-                  <Snowflake className="h-3.5 w-3.5 text-sky-600" />
-                  Cold Tier: <strong className="text-black">&lt; {metrics.warm_threshold}%</strong>
-                </span>
-              </div>
+          <div className="mt-4 pt-3 border-t border-slate-100 space-y-1.5">
+            <p className="text-[11px] font-semibold text-slate-700 flex items-center gap-1.5">
+              <ArrowUpRight className="h-3.5 w-3.5 text-rose-600" />
+              Primary Play: Immediate executive demo &amp; quote
+            </p>
+            <p className="text-[11px] text-slate-500 leading-snug">
+              Key Signals: High web time (&gt;800s), Add Form origin, high-intent inquiries.
+            </p>
+          </div>
+        </div>
 
-              {lastExecutionMs !== null && (
-                <div className="text-[11px] text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200 flex items-center gap-1.5 font-medium">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  Pipeline scored leads in {lastExecutionMs}ms
+        {/* Warm Leads Card (Dashed Border) */}
+        <div className="bg-white rounded-2xl border-2 border-black border-dashed p-5 shadow-none flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-amber-50 border border-amber-200">
+                  <TrendingUp className="h-5 w-5 text-amber-600" />
                 </div>
-              )}
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Warm Tier</h3>
+                  <p className="text-[11px] text-slate-500">40 - 79% Conversion Score</p>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                {categoryCounts.warm} leads
+              </span>
             </div>
-          </CardContent>
-        </Card>
-      )}
 
-      {/* Dataset View Mode Switcher */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-black/5 shadow-sm">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-semibold text-black/70 mr-1">Pipeline Mode:</span>
-          <div className="flex items-center p-1 bg-black/5 rounded-xl gap-1 flex-wrap">
+            <div className="space-y-1 mt-4">
+              <p className="text-[11px] uppercase tracking-wider font-semibold text-slate-400">Average Lock Chance</p>
+              <p className="text-3xl font-black text-slate-900">
+                {demoSummary ? `${demoSummary.warm_avg_lock_chance.toFixed(1)}%` : "40 - 79%"}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-slate-100 space-y-1.5">
+            <p className="text-[11px] font-semibold text-slate-700 flex items-center gap-1.5">
+              <ArrowUpRight className="h-3.5 w-3.5 text-amber-600" />
+              Primary Play: Technical value asset &amp; case studies
+            </p>
+            <p className="text-[11px] text-slate-500 leading-snug">
+              Key Signals: Moderate engagement, email opened, active evaluation in progress.
+            </p>
+          </div>
+        </div>
+
+        {/* Cold Leads Card (Solid Border) */}
+        <div className="bg-white rounded-2xl border-2 border-black border-solid p-5 shadow-none flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-sky-50 border border-sky-200">
+                  <Snowflake className="h-5 w-5 text-sky-600" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Cold Tier</h3>
+                  <p className="text-[11px] text-slate-500">&lt; 40% Conversion Score</p>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-sky-50 text-sky-700 border border-sky-200">
+                {categoryCounts.cold} leads
+              </span>
+            </div>
+
+            <div className="space-y-1 mt-4">
+              <p className="text-[11px] uppercase tracking-wider font-semibold text-slate-400">Average Lock Chance</p>
+              <p className="text-3xl font-black text-slate-900">
+                {demoSummary ? `${demoSummary.cold_avg_lock_chance.toFixed(1)}%` : "2 - 39%"}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-slate-100 space-y-1.5">
+            <p className="text-[11px] font-semibold text-slate-700 flex items-center gap-1.5">
+              <ArrowUpRight className="h-3.5 w-3.5 text-sky-600" />
+              Primary Play: Low-touch automated nurturing sequence
+            </p>
+            <p className="text-[11px] text-slate-500 leading-snug">
+              Key Signals: Minimal site time (&lt;100s), friction tags, passive channel origin.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. DATASET PIPELINE INGESTION CONSOLE */}
+      <div className="bg-white rounded-2xl border-2 border-black p-5 sm:p-6 shadow-none space-y-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 mr-1">Pipeline Mode:</span>
             <button
               onClick={() => setDataSource("verification20")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                 dataSource === "verification20"
-                  ? "bg-white text-black shadow-sm"
-                  : "text-black/50 hover:text-black"
+                  ? "bg-black text-white shadow-xs"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
               }`}
             >
-              <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
-              20-Lead Verification Dataset (Live)
+              <Sparkles className="h-3.5 w-3.5" />
+              20-Lead Live Verification
             </button>
             <button
               onClick={() => setDataSource("inject")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                 dataSource === "inject"
-                  ? "bg-indigo-600 text-white shadow-sm"
-                  : "text-black/50 hover:text-black"
+                  ? "bg-black text-white shadow-xs"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
               }`}
             >
               <Upload className="h-3.5 w-3.5" />
@@ -522,181 +695,129 @@ export function ConversionPanel({
             </button>
             <button
               onClick={() => setDataSource("full")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                 dataSource === "full"
-                  ? "bg-white text-black shadow-sm"
-                  : "text-black/50 hover:text-black"
+                  ? "bg-black text-white shadow-xs"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
               }`}
             >
-              <BarChart3 className="h-3.5 w-3.5 text-black/40" />
+              <BarChart3 className="h-3.5 w-3.5" />
               Full Database (1,848 Leads)
             </button>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2">
-          {dataSource === "verification20" && (
+          <div className="flex items-center gap-2 flex-wrap">
+            {dataSource === "verification20" && (
+              <Button
+                size="sm"
+                onClick={runLiveVerificationPipeline}
+                disabled={benchmarking}
+                className="bg-black hover:bg-black/85 text-white text-xs h-8 px-3 rounded-lg flex items-center gap-1.5 shadow-xs"
+              >
+                {benchmarking ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+                {benchmarking ? "Scoring 20 Leads Live…" : "Re-run Live Pipeline"}
+              </Button>
+            )}
+
             <Button
+              variant="outline"
               size="sm"
-              onClick={runLiveVerificationPipeline}
-              disabled={benchmarking}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-8 px-3 rounded-lg shadow-sm flex items-center gap-1.5"
+              onClick={
+                dataSource === "verification20"
+                  ? fetchVerification20
+                  : dataSource === "inject"
+                  ? executeInjectedPipeline
+                  : fetchFullScoredLeads
+              }
+              disabled={loading || injecting}
+              className="text-xs h-8 border-slate-200 bg-white hover:bg-slate-100 text-slate-700 rounded-lg"
             >
-              {benchmarking ? (
-                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Play className="h-3.5 w-3.5" />
-              )}
-              {benchmarking ? "Scoring 20 Leads Live…" : "Re-run 20-Lead Live Pipeline"}
+              <RefreshCw className={`h-3 w-3 mr-1 ${loading || injecting ? "animate-spin text-black" : ""}`} />
+              Refresh Data
             </Button>
-          )}
-
-          {leads.length > 0 && (
-            <div className="flex items-center gap-1">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => downloadResults("csv")}
-                className="text-xs h-8 border-black/10 text-black/70 rounded-lg flex items-center gap-1"
-              >
-                <Download className="h-3 w-3" /> CSV
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => downloadResults("json")}
-                className="text-xs h-8 border-black/10 text-black/70 rounded-lg flex items-center gap-1"
-              >
-                <Download className="h-3 w-3" /> JSON
-              </Button>
-            </div>
-          )}
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={
-              dataSource === "verification20"
-                ? fetchVerification20
-                : dataSource === "inject"
-                ? executeInjectedPipeline
-                : fetchFullScoredLeads
-            }
-            disabled={loading || injecting}
-            className="text-xs h-8 border-black/10 text-black/70 rounded-lg"
-          >
-            <RefreshCw className={`h-3 w-3 mr-1 ${loading || injecting ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
+          </div>
         </div>
-      </div>
 
-      {/* INJECTION STUDIO CARD (When in "inject" mode) */}
-      {dataSource === "inject" && (
-        <Card className="border-indigo-200 bg-gradient-to-br from-indigo-50/40 via-white to-purple-50/30 shadow-md">
-          <CardHeader className="py-3 px-5 border-b border-indigo-100 flex flex-row items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="h-7 w-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center">
-                <Cpu className="h-4 w-4" />
-              </div>
-              <div>
-                <CardTitle className="text-sm font-bold text-black">
-                  Lead Intelligence Injection &amp; Data Cleaning Studio
-                </CardTitle>
-                <p className="text-[11px] text-black/50">
-                  Inject raw, uncleaned CSV or JSON leads. The pipeline handles schema alignment, imputes missing values, and scores conversion probability with TreeSHAP explainability.
-                </p>
+        {/* Injected dataset controls */}
+        {dataSource === "inject" && (
+          <div className="space-y-4 pt-1">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <span className="text-xs font-semibold text-slate-700">
+                Raw Input (CSV format or JSON array):
+              </span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  accept=".csv,.json,text/csv,application/json"
+                  className="hidden"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="text-xs h-8 border-slate-200 bg-white hover:bg-black hover:text-white text-slate-800 flex items-center gap-1.5 rounded-lg"
+                >
+                  <Upload className="h-3.5 w-3.5" /> Upload File (.csv / .json)
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={loadSampleRawDataset}
+                  disabled={loading}
+                  className="text-xs h-8 border-slate-200 bg-white hover:bg-black hover:text-white text-slate-800 flex items-center gap-1.5 rounded-lg"
+                >
+                  <FileText className="h-3.5 w-3.5" /> Load 25-Lead Raw Sample
+                </Button>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileUpload}
-                accept=".csv,.json"
-                className="hidden"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => fileInputRef.current?.click()}
-                className="text-xs h-8 border-indigo-200 text-indigo-700 bg-white hover:bg-indigo-50 flex items-center gap-1.5"
-              >
-                <Upload className="h-3.5 w-3.5" /> Upload File (.csv / .json)
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={loadSampleRawDataset}
-                disabled={loading}
-                className="text-xs h-8 border-indigo-200 text-indigo-700 bg-white hover:bg-indigo-50 flex items-center gap-1.5"
-              >
-                <FileText className="h-3.5 w-3.5" /> Load 25-Lead Raw Sample
-              </Button>
-            </div>
-          </CardHeader>
-
-          <CardContent className="p-5 space-y-4">
-            <div>
-              <div className="flex items-center justify-between mb-1.5 text-xs">
-                <span className="font-semibold text-black/70 flex items-center gap-1">
-                  Raw Lead Input (JSON Array or CSV Format):
-                </span>
-                <span className="text-[11px] text-black/40">
-                  Accepts missing fields, dirty numerical strings (e.g. &apos;1840s&apos;), and arbitrary alias keys
-                </span>
-              </div>
-              <textarea
-                value={rawInputText}
-                onChange={(e) => setRawInputText(e.target.value)}
-                placeholder="Paste raw CSV or JSON leads array here, or click 'Load 25-Lead Raw Sample' above..."
-                rows={7}
-                className="w-full font-mono text-xs p-3 rounded-xl border border-black/10 bg-white shadow-inner focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-slate-800"
-              />
-            </div>
+            <textarea
+              value={rawInputText}
+              onChange={(e) => setRawInputText(e.target.value)}
+              placeholder="Paste raw CSV text or JSON leads array here, or upload a CSV file above..."
+              rows={5}
+              className="w-full font-mono text-xs p-3 rounded-xl border-2 border-black/20 focus:border-black bg-slate-50/50 shadow-inner focus:outline-none text-slate-800 transition-colors"
+            />
 
             <div className="flex items-center justify-between flex-wrap gap-3">
-              <div className="text-xs text-black/60 flex items-center gap-2">
+              <div className="text-xs text-slate-500 flex items-center gap-2">
                 <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>Automatic preprocessing includes Median &amp; Mode SimpleImputers + 158-dimension OneHot encoder</span>
+                <span>Automatic preprocessing includes SimpleImputer + 158-dimension OneHot encoder</span>
               </div>
 
               <Button
                 size="default"
                 onClick={executeInjectedPipeline}
                 disabled={injecting}
-                className="bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-xs h-9 px-5 rounded-xl shadow-md flex items-center gap-2"
+                className="bg-black hover:bg-black/85 text-white font-bold text-xs h-9 px-5 rounded-xl shadow-xs flex items-center gap-2"
               >
-                {injecting ? (
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Play className="h-4 w-4" />
-                )}
+                {injecting ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
                 {injecting ? "Cleaning Data & Scoring Pipeline…" : "Clean Data & Run Entire Pipeline"}
               </Button>
             </div>
 
-            {/* Cleaning Report Banner (Displayed after execution) */}
+            {/* Cleaning Report Banner */}
             {cleaningReport && (
-              <div className="mt-3 p-4 rounded-xl bg-emerald-50/80 border border-emerald-200 space-y-2">
+              <div className="mt-3 p-4 rounded-xl border-2 border-black bg-slate-50 space-y-2">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-emerald-900 font-bold text-xs">
+                  <div className="flex items-center gap-2 text-slate-900 font-bold text-xs">
                     <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
                     <span>Data Cleaning &amp; Pipeline Execution Complete ({lastExecutionMs}ms)</span>
                   </div>
                   <button
                     onClick={() => setShowCleaningDetails(!showCleaningDetails)}
-                    className="text-[11px] text-emerald-700 hover:text-emerald-900 font-semibold underline flex items-center gap-1"
+                    className="text-xs text-slate-700 hover:text-black font-semibold underline flex items-center gap-1"
                   >
-                    {showCleaningDetails ? "Hide Cleaning Steps" : "View Cleaning Steps"}
+                    {showCleaningDetails ? "Hide Steps" : "View Steps"}
                     {showCleaningDetails ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                   </button>
                 </div>
 
-                <div className="flex items-center gap-4 text-xs text-emerald-800 flex-wrap">
+                <div className="flex items-center gap-4 text-xs text-slate-700 flex-wrap">
                   <span>✓ <strong>{cleaningReport.total_records}</strong> records cleaned</span>
                   <span>✓ <strong>{cleaningReport.missing_values_imputed}</strong> missing values imputed</span>
                   <span>✓ <strong>{cleaningReport.fields_normalized}</strong> alias keys standardized</span>
@@ -704,7 +825,7 @@ export function ConversionPanel({
                 </div>
 
                 {showCleaningDetails && (
-                  <ul className="mt-2 pt-2 border-t border-emerald-200/60 space-y-1 text-xs text-emerald-900">
+                  <ul className="mt-2 pt-2 border-t border-slate-200 space-y-1 text-xs text-slate-800">
                     {cleaningReport.cleaning_steps.map((step, idx) => (
                       <li key={idx} className="flex items-center gap-1.5 font-mono text-[11px]">
                         <Check className="h-3 w-3 text-emerald-600 shrink-0" />
@@ -715,447 +836,405 @@ export function ConversionPanel({
                 )}
               </div>
             )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Conversion Chances & Evidence Summary by Class */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        {/* Hot Card */}
-        <Card className="border-rose-200/60 shadow-sm bg-gradient-to-br from-rose-50/50 via-white to-rose-50/30 overflow-hidden">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-rose-100 flex items-center justify-center">
-                  <Flame className="h-4 w-4 text-rose-600" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-rose-950 uppercase tracking-wide">Hot Leads</h4>
-                  <p className="text-[10px] text-rose-700/70 font-medium">&ge; 80% Conversion Score</p>
-                </div>
-              </div>
-              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800">
-                {categoryCounts.hot} leads
-              </span>
-            </div>
-
-            <div className="mt-3 pt-3 border-t border-rose-100/80 space-y-2">
-              <div className="flex items-baseline justify-between">
-                <span className="text-xs text-black/60">Lock Likelihood:</span>
-                <span className="text-xl font-extrabold text-rose-600">
-                  {demoSummary ? `${demoSummary.hot_avg_lock_chance.toFixed(1)}%` : "80 - 99%"}
-                </span>
-              </div>
-              <div className="text-[11px] text-rose-900/80 bg-white/70 p-2 rounded-lg border border-rose-100">
-                <p className="font-semibold text-rose-950 mb-0.5">Top Model Evidence Signals:</p>
-                <p>High web time (&gt;1000s), Add Form origin, Horizzon close tag, executive profile.</p>
-              </div>
-              <p className="text-[10px] text-rose-700 font-medium flex items-center gap-1">
-                <ArrowUpRight className="h-3 w-3" /> Recommended Play: 1-hour VIP close call
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Warm Card */}
-        <Card className="border-amber-200/60 shadow-sm bg-gradient-to-br from-amber-50/50 via-white to-amber-50/30 overflow-hidden">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-amber-100 flex items-center justify-center">
-                  <TrendingUp className="h-4 w-4 text-amber-600" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-amber-950 uppercase tracking-wide">Warm Leads</h4>
-                  <p className="text-[10px] text-amber-700/70 font-medium">40 - 79% Conversion Score</p>
-                </div>
-              </div>
-              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
-                {categoryCounts.warm} leads
-              </span>
-            </div>
-
-            <div className="mt-3 pt-3 border-t border-amber-100/80 space-y-2">
-              <div className="flex items-baseline justify-between">
-                <span className="text-xs text-black/60">Lock Likelihood:</span>
-                <span className="text-xl font-extrabold text-amber-600">
-                  {demoSummary ? `${demoSummary.warm_avg_lock_chance.toFixed(1)}%` : "40 - 79%"}
-                </span>
-              </div>
-              <div className="text-[11px] text-amber-900/80 bg-white/70 p-2 rounded-lg border border-amber-100">
-                <p className="font-semibold text-amber-950 mb-0.5">Top Model Evidence Signals:</p>
-                <p>Moderate engagement, email opened, organic interest, evaluation in progress.</p>
-              </div>
-              <p className="text-[10px] text-amber-700 font-medium flex items-center gap-1">
-                <ArrowUpRight className="h-3 w-3" /> Recommended Play: ROI calculator &amp; technical demo
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Cold Card */}
-        <Card className="border-sky-200/60 shadow-sm bg-gradient-to-br from-sky-50/50 via-white to-sky-50/30 overflow-hidden">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-sky-100 flex items-center justify-center">
-                  <Snowflake className="h-4 w-4 text-sky-600" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-sky-950 uppercase tracking-wide">Cold Leads</h4>
-                  <p className="text-[10px] text-sky-700/70 font-medium">&lt; 40% Conversion Score</p>
-                </div>
-              </div>
-              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-sky-100 text-sky-800">
-                {categoryCounts.cold} leads
-              </span>
-            </div>
-
-            <div className="mt-3 pt-3 border-t border-sky-100/80 space-y-2">
-              <div className="flex items-baseline justify-between">
-                <span className="text-xs text-black/60">Lock Likelihood:</span>
-                <span className="text-xl font-extrabold text-sky-600">
-                  {demoSummary ? `${demoSummary.cold_avg_lock_chance.toFixed(1)}%` : "2 - 39%"}
-                </span>
-              </div>
-              <div className="text-[11px] text-sky-900/80 bg-white/70 p-2 rounded-lg border border-sky-100">
-                <p className="font-semibold text-sky-950 mb-0.5">Top Model Evidence Signals:</p>
-                <p>Minimal site time (&lt;100s), ringing / unanswered tags, student / passive profile.</p>
-              </div>
-              <p className="text-[10px] text-sky-700 font-medium flex items-center gap-1">
-                <ArrowUpRight className="h-3 w-3" /> Recommended Play: Low-touch drip automation
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+        )}
       </div>
 
-      {/* Filter Tabs */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-1.5 bg-black/5 p-1 rounded-xl">
-          {[
-            { id: "all", label: "All", count: categoryCounts.all },
-            { id: "Hot", label: "Hot", count: categoryCounts.hot },
-            { id: "Warm", label: "Warm", count: categoryCounts.warm },
-            { id: "Cold", label: "Cold", count: categoryCounts.cold },
-          ].map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setCategory(item.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
-                category === item.id
-                  ? "bg-white text-black shadow-sm font-semibold"
-                  : "text-black/50 hover:text-black"
-              }`}
-            >
-              <span>{item.label}</span>
-              <span
-                className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                  category === item.id ? "bg-black/10 text-black" : "bg-black/5 text-black/50"
-                }`}
-              >
-                {item.count}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        <div className="text-xs text-black/50">
-          Showing <strong>{displayedLeads.length}</strong> leads
-        </div>
-      </div>
-
-      {/* Error message */}
+      {/* Error notification if any */}
       {error && (
-        <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4 shrink-0" />
-          <span>{error}</span>
+        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0" />
+            <span>{error}</span>
+          </div>
         </div>
       )}
 
-      {/* Leads Table with Evidence, Confidence, and Lock Chance */}
-      <Card className="border-black/5 shadow-sm overflow-hidden">
-        <CardHeader className="py-3 px-5 border-b border-black/5 bg-black/[0.01]">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-bold text-black flex items-center gap-2">
-              <BarChart3 className="h-4 w-4 text-indigo-600" />
-              {dataSource === "verification20"
-                ? "20-Lead Live Pipeline Verification Dataset"
-                : dataSource === "inject"
-                ? "Cleaned & Scored Injected Dataset"
-                : "CRM Lead Conversion Pipeline"}
-            </CardTitle>
-            <span className="text-[11px] text-black/50">
-              Ranked by XGBoost Lock Likelihood
+      {/* 4. THE SCORED LEADS TABLE: Styled Exactly Like LeadsTable (Rectangular & Bigger) */}
+      <div className="bg-white rounded-2xl border-2 border-black shadow-none overflow-hidden flex flex-col w-full">
+        {/* Table Toolbar / Search & Filters */}
+        <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50 shrink-0">
+          <div className="flex items-center gap-2 flex-1 max-w-md">
+            <div className="relative w-full">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Input
+                placeholder="Search by ID, name, company, origin, primary driver..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 bg-white border-slate-200 text-sm focus-visible:ring-black"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Category Filter Pills */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+              {[
+                { id: "all", label: "All", count: categoryCounts.all },
+                { id: "Hot", label: "Hot", count: categoryCounts.hot },
+                { id: "Warm", label: "Warm", count: categoryCounts.warm },
+                { id: "Cold", label: "Cold", count: categoryCounts.cold },
+              ].map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setCategory(item.id)}
+                  className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                    category === item.id
+                      ? "bg-white text-black shadow-xs"
+                      : "text-slate-500 hover:text-black"
+                  }`}
+                >
+                  <span>{item.label}</span>
+                  <span
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                      category === item.id ? "bg-slate-100 text-black" : "bg-transparent text-slate-400"
+                    }`}
+                  >
+                    {item.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Export buttons */}
+            {leads.length > 0 && (
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => downloadResults("csv")}
+                  className="h-9 px-3 text-xs border-slate-200 bg-white hover:bg-slate-100 text-slate-700 rounded-lg flex items-center gap-1"
+                >
+                  <Download className="h-3.5 w-3.5" /> CSV
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => downloadResults("json")}
+                  className="h-9 px-3 text-xs border-slate-200 bg-white hover:bg-slate-100 text-slate-700 rounded-lg flex items-center gap-1"
+                >
+                  <Download className="h-3.5 w-3.5" /> JSON
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Table Content */}
+        <div className="overflow-x-auto flex-1 overflow-y-auto">
+          <Table>
+            <TableHeader className="bg-slate-50/80">
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="w-[260px] text-xs font-semibold text-slate-600">Rank &amp; Contact</TableHead>
+                <TableHead className="w-[110px] text-xs font-semibold text-slate-600">Tier</TableHead>
+                <TableHead className="w-[180px] text-xs font-semibold text-slate-600">Lock Likelihood</TableHead>
+                <TableHead className="w-[120px] text-xs font-semibold text-slate-600">Confidence</TableHead>
+                <TableHead className="min-w-[220px] text-xs font-semibold text-slate-600">Decision Evidence (TreeSHAP)</TableHead>
+                <TableHead className="min-w-[180px] text-xs font-semibold text-slate-600">Lock Strategy</TableHead>
+                <TableHead className="text-right text-xs font-semibold text-slate-600">Inspection &amp; Details</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading && leads.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-16 text-slate-500">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <RefreshCw className="h-6 w-6 animate-spin text-black" />
+                      <p className="font-semibold text-slate-700">Loading intelligence data...</p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : displayedLeads.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-16 text-slate-500">
+                    <div className="max-w-xs mx-auto space-y-2">
+                      <p className="font-semibold text-slate-700">No leads match your filter</p>
+                      <p className="text-xs text-slate-500">Try adjusting your search query or reset your tier selection.</p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                displayedLeads.map((lead) => {
+                  const badgeStyle = categoryBadges[lead.lead_category] || categoryBadges.Cold;
+                  const confBadge = confidenceBadges[lead.confidence_level] || confidenceBadges.Moderate;
+                  const isExpanded = expandedLead === lead.lead_id;
+                  const rawLockPct = lead.lock_chance_pct ?? (lead.predicted_probability != null ? lead.predicted_probability * 100 : 0);
+                  const lockPctDisplay = formatPercent(rawLockPct, 3);
+                  const lockPctNum = typeof rawLockPct === "number" ? rawLockPct : parseFloat(String(rawLockPct)) || 0;
+
+                  return (
+                    <React.Fragment key={lead.lead_id}>
+                      <TableRow
+                        onClick={() => setExpandedLead(isExpanded ? null : lead.lead_id)}
+                        className={`cursor-pointer transition-colors ${
+                          isExpanded ? "bg-slate-50/90 border-l-4 border-l-black" : "hover:bg-slate-50/80"
+                        }`}
+                      >
+                        {/* 1. Rank & Contact */}
+                        <TableCell className="py-3.5">
+                          <div className="flex items-center gap-3">
+                            <div className="h-9 w-9 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-xs text-slate-800 shrink-0">
+                              #{lead.sales_rank}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-slate-900 truncate">
+                                {lead.contact_name || lead.lead_id}
+                              </p>
+                              <div className="flex items-center gap-2 text-xs text-slate-500 truncate">
+                                <span className="flex items-center gap-1 truncate">
+                                  <Building2 className="h-3 w-3 text-slate-400" />
+                                  {lead.company || "Enterprise Lead"}
+                                </span>
+                                {lead.job_title && (
+                                  <span className="truncate border-l border-slate-200 pl-2 text-[11px]">
+                                    {lead.job_title}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </TableCell>
+
+                        {/* 2. Tier Badge */}
+                        <TableCell className="py-3.5">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border ${badgeStyle.badge}`}
+                          >
+                            {badgeStyle.icon}
+                            {lead.lead_category}
+                          </span>
+                        </TableCell>
+
+                        {/* 3. Lock Likelihood Bar */}
+                        <TableCell className="py-3.5">
+                          <div className="space-y-1.5 w-full">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="font-bold text-slate-800">{lockPctDisplay}</span>
+                              <span className="text-[10px] text-slate-400 font-medium">Score: {lead.lead_score}</span>
+                            </div>
+                            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all duration-500 ${badgeStyle.barColor}`}
+                                style={{ width: `${Math.min(100, Math.max(3, lockPctNum))}%` }}
+                              />
+                            </div>
+                          </div>
+                        </TableCell>
+
+                        {/* 4. Confidence */}
+                        <TableCell className="py-3.5">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold border ${confBadge}`}
+                          >
+                            {lead.confidence_level || "Moderate"}
+                          </span>
+                        </TableCell>
+
+                        {/* 5. Decision Evidence / Driver */}
+                        <TableCell className="py-3.5">
+                          <div className="space-y-1">
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-800 text-xs font-medium border border-slate-200 max-w-full">
+                              <Target className="h-3 w-3 text-black shrink-0" />
+                              <span className="truncate max-w-[220px]">{lead.primary_driver || "Profile Baseline"}</span>
+                            </div>
+                            {lead.positive_evidence && lead.positive_evidence.length > 0 && (
+                              <p className="text-[11px] text-emerald-700 truncate max-w-[240px]">
+                                <span className="font-bold">+</span> {lead.positive_evidence[0]}
+                              </p>
+                            )}
+                          </div>
+                        </TableCell>
+
+                        {/* 6. Lock Strategy */}
+                        <TableCell className="py-3.5">
+                          <span className="text-xs text-slate-700 line-clamp-2 max-w-[200px]">
+                            {lead.lock_strategy || "Standard engagement sequence"}
+                          </span>
+                        </TableCell>
+
+                        {/* 7. Inspection & Details */}
+                        <TableCell className="py-3.5 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const mapped = mapScoredLeadToLeadItem(lead);
+                                onInspectLead?.(mapped);
+                              }}
+                              className="h-7 px-2.5 text-xs font-semibold border-slate-200 bg-white hover:bg-black hover:text-white text-slate-800 transition-all shadow-xs flex items-center gap-1 rounded-md"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              Inspect
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-slate-400 hover:text-black"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedLead(isExpanded ? null : lead.lead_id);
+                              }}
+                            >
+                              {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+
+                      {/* Expandable Attributes Drawer */}
+                      {isExpanded && (
+                        <TableRow className="bg-slate-50/70 hover:bg-slate-50/70 border-b border-black/10">
+                          <TableCell colSpan={7} className="px-6 py-4 space-y-3">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              {/* Positive Factors */}
+                              <div className="p-3 rounded-xl border border-slate-200 bg-white space-y-1.5">
+                                <p className="text-xs font-bold text-slate-900 uppercase tracking-wide flex items-center gap-1.5">
+                                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                                  Positive Supporting Evidence
+                                </p>
+                                {lead.positive_evidence && lead.positive_evidence.length > 0 ? (
+                                  <ul className="space-y-1">
+                                    {lead.positive_evidence.map((ev, i) => (
+                                      <li
+                                        key={i}
+                                        className="text-xs text-emerald-800 flex items-center gap-1.5 bg-emerald-50/60 px-2.5 py-1 rounded-md border border-emerald-100"
+                                      >
+                                        <span className="font-bold text-emerald-600">+</span>
+                                        <span>{ev}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p className="text-xs text-slate-400 italic">No strong positive drivers detected.</p>
+                                )}
+                              </div>
+
+                              {/* Friction Signals */}
+                              <div className="p-3 rounded-xl border border-slate-200 bg-white space-y-1.5">
+                                <p className="text-xs font-bold text-slate-900 uppercase tracking-wide flex items-center gap-1.5">
+                                  <AlertTriangle className="h-3.5 w-3.5 text-rose-600" />
+                                  Friction &amp; Risk Factors
+                                </p>
+                                {lead.negative_evidence && lead.negative_evidence.length > 0 ? (
+                                  <ul className="space-y-1">
+                                    {lead.negative_evidence.map((ev, i) => (
+                                      <li
+                                        key={i}
+                                        className="text-xs text-rose-800 flex items-center gap-1.5 bg-rose-50/60 px-2.5 py-1 rounded-md border border-rose-100"
+                                      >
+                                        <span className="font-bold text-rose-600">-</span>
+                                        <span>{ev}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p className="text-xs text-slate-400 italic">Low friction profile.</p>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Attribute Grid */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 text-xs border-t border-slate-200">
+                              <div className="flex items-center gap-2 text-slate-600">
+                                <Clock className="h-3.5 w-3.5 text-slate-400" />
+                                <span className="text-slate-400">Website Time:</span>
+                                <span className="font-semibold text-slate-800">{Math.round(lead.total_time_on_website)}s</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-slate-600">
+                                <Eye className="h-3.5 w-3.5 text-slate-400" />
+                                <span className="text-slate-400">Total Visits:</span>
+                                <span className="font-semibold text-slate-800">{lead.total_visits}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-slate-600">
+                                <Briefcase className="h-3.5 w-3.5 text-slate-400" />
+                                <span className="text-slate-400">Occupation:</span>
+                                <span className="font-semibold text-slate-800">{lead.occupation || "N/A"}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-slate-600">
+                                <Award className="h-3.5 w-3.5 text-slate-400" />
+                                <span className="text-slate-400">Origin:</span>
+                                <span className="font-semibold text-slate-800">{lead.lead_origin || "Direct"}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-slate-600">
+                                <Globe className="h-3.5 w-3.5 text-slate-400" />
+                                <span className="text-slate-400">Country:</span>
+                                <span className="font-semibold text-slate-800">{lead.country || "N/A"}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-slate-600">
+                                <MapPin className="h-3.5 w-3.5 text-slate-400" />
+                                <span className="text-slate-400">City:</span>
+                                <span className="font-semibold text-slate-800">{lead.city && lead.city !== "nan" ? lead.city : "N/A"}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-slate-600">
+                                <Mail className="h-3.5 w-3.5 text-slate-400" />
+                                <span className="text-slate-400">Last Activity:</span>
+                                <span className="font-semibold text-slate-800">{lead.last_activity || "N/A"}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-slate-600">
+                                <Activity className="h-3.5 w-3.5 text-slate-400" />
+                                <span className="text-slate-400">Tags:</span>
+                                <span className="font-semibold text-slate-800 truncate">{lead.tags || "N/A"}</span>
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* Footer stats & Pagination with Next button matching LeadsTable */}
+        <div className="p-3 sm:px-5 sm:py-3 border-t border-slate-100 text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50/70 shrink-0">
+          <div className="flex items-center gap-2">
+            <span>
+              Showing <strong className="font-semibold text-slate-700">{filteredLeads.length === 0 ? 0 : startIndex + 1}</strong> to{" "}
+              <strong className="font-semibold text-slate-700">{Math.min(startIndex + pageSize, filteredLeads.length)}</strong> of{" "}
+              <strong className="font-semibold text-slate-700">{filteredLeads.length}</strong> leads
+            </span>
+            <span className="hidden md:inline text-[11px] text-slate-400">
+              • XGBoost Intelligence
             </span>
           </div>
-        </CardHeader>
 
-        <CardContent className="p-0">
-          {loading && leads.length === 0 ? (
-            <div className="flex items-center justify-center py-20 flex-col gap-2">
-              <RefreshCw className="h-6 w-6 animate-spin text-indigo-600" />
-              <span className="text-sm text-black/50">Loading pipeline intelligence…</span>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-black/5 bg-black/[0.02] text-black/50 text-[10px] uppercase tracking-wider font-semibold">
-                    <th className="py-3 px-4 text-left">Rank &amp; Contact</th>
-                    <th className="py-3 px-4 text-left">Class</th>
-                    <th className="py-3 px-4 text-left min-w-[150px]">Chances to Lock Lead</th>
-                    <th className="py-3 px-4 text-left">Confidence</th>
-                    <th className="py-3 px-4 text-left min-w-[220px]">Primary Evidence / Why Predicted</th>
-                    <th className="py-3 px-4 text-left">Origin / Source</th>
-                    <th className="py-3 px-4 text-center">Actual Converted</th>
-                    <th className="py-3 px-3 text-center" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {displayedLeads.map((lead) => {
-                    const style = categoryStyles[lead.lead_category] || categoryStyles.Cold;
-                    const isExpanded = expandedLead === lead.lead_id;
-                    const confBadge = confidenceBadges[lead.confidence_level] || confidenceBadges.Moderate;
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500 mr-1.5">
+              Page <strong className="font-semibold text-slate-800">{currentPage}</strong> of{" "}
+              <strong className="font-semibold text-slate-800">{totalPages}</strong>
+            </span>
 
-                    return (
-                      <React.Fragment key={lead.lead_id}>
-                        <tr
-                          className={`border-b border-black/5 hover:bg-black/[0.015] cursor-pointer transition-colors ${
-                            isExpanded ? "bg-indigo-50/30" : ""
-                          }`}
-                          onClick={() => setExpandedLead(isExpanded ? null : lead.lead_id)}
-                        >
-                          {/* Rank & Contact */}
-                          <td className="py-3 px-4">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-black/40 font-bold text-xs">
-                                #{lead.sales_rank}
-                              </span>
-                              <div>
-                                <p className="font-semibold text-black text-xs">
-                                  {lead.contact_name || lead.lead_id}
-                                </p>
-                                <p className="text-[10px] text-black/50 flex items-center gap-1">
-                                  <Building2 className="h-3 w-3 text-black/30" />
-                                  {lead.company || lead.lead_id}
-                                </p>
-                              </div>
-                            </div>
-                          </td>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+              className="h-8 px-2.5 text-xs bg-white border-slate-200 text-slate-700 hover:bg-slate-100 disabled:opacity-40"
+            >
+              <ChevronLeft className="h-3.5 w-3.5 mr-1" />
+              Previous
+            </Button>
 
-                          {/* Class Badge */}
-                          <td className="py-3 px-4">
-                            <span
-                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold ring-1 ${style.bg} ${style.text} ${style.ring}`}
-                            >
-                              {style.icon}
-                              {lead.lead_category}
-                            </span>
-                          </td>
-
-                          {/* Chances to Lock Lead */}
-                          <td className="py-3 px-4">
-                            <LockChanceBar
-                              percentage={lead.lock_chance_pct || Math.round(lead.predicted_probability * 100)}
-                              category={lead.lead_category}
-                            />
-                          </td>
-
-                          {/* Confidence Level */}
-                          <td className="py-3 px-4">
-                            <span
-                              className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold ring-1 ${confBadge}`}
-                            >
-                              {lead.confidence_level || "Moderate"}
-                            </span>
-                          </td>
-
-                          {/* Primary Evidence / Signals */}
-                          <td className="py-3 px-4">
-                            <div className="space-y-1">
-                              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-800 text-[11px] font-medium border border-indigo-100">
-                                <Target className="h-3 w-3 text-indigo-600 shrink-0" />
-                                <span className="truncate max-w-[200px]">{lead.primary_driver || "Baseline Profile"}</span>
-                              </div>
-                              {lead.positive_evidence && lead.positive_evidence.length > 1 && (
-                                <div className="text-[10px] text-emerald-700 flex items-center gap-1">
-                                  <span>+</span>
-                                  <span className="truncate max-w-[200px]">{lead.positive_evidence[1]}</span>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-
-                          {/* Origin / Source */}
-                          <td className="py-3 px-4 text-black/70">
-                            <div>
-                              <p className="font-medium text-[11px] text-black">
-                                {lead.lead_origin || "Direct"}
-                              </p>
-                              <p className="text-[10px] text-black/40">
-                                {lead.lead_source || "Unspecified"}
-                              </p>
-                            </div>
-                          </td>
-
-                          {/* Actual Outcome */}
-                          <td className="py-3 px-4 text-center">
-                            {lead.actual_converted === 1 ? (
-                              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 font-bold text-xs">
-                                ✓
-                              </span>
-                            ) : (
-                              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-black/5 text-black/30 text-xs">
-                                ✗
-                              </span>
-                            )}
-                          </td>
-
-                          {/* Expand chevron */}
-                          <td className="py-3 px-3 text-center">
-                            {isExpanded ? (
-                              <ChevronUp className="h-4 w-4 text-black/40" />
-                            ) : (
-                              <ChevronDown className="h-4 w-4 text-black/40" />
-                            )}
-                          </td>
-                        </tr>
-
-                        {/* Expanded Detail View: Full Evidence Breakdown & Recommended Lock Strategy */}
-                        {isExpanded && (
-                          <tr className="bg-slate-50/70 border-b border-black/5">
-                            <td colSpan={8} className="px-6 py-4 space-y-3">
-                              {/* Recommended Lock Strategy Banner */}
-                              <div className="p-3 rounded-xl bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-100 flex items-start gap-3">
-                                <div className="h-7 w-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0 mt-0.5">
-                                  <Zap className="h-3.5 w-3.5" />
-                                </div>
-                                <div className="space-y-0.5">
-                                  <p className="text-xs font-bold text-indigo-950">
-                                    Recommended Action to Lock This Client:
-                                  </p>
-                                  <p className="text-xs text-indigo-900">
-                                    {lead.lock_strategy || "Execute high-touch discovery call."}
-                                  </p>
-                                </div>
-                              </div>
-
-                              {/* Evidence Attribution (Positive vs Negative Decision Factors) */}
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                                <div className="p-3 rounded-xl bg-emerald-50/50 border border-emerald-100 space-y-1.5">
-                                  <p className="text-[11px] font-bold text-emerald-900 uppercase tracking-wide flex items-center gap-1.5">
-                                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                                    Positive Evidence (Pushed Conversion UP)
-                                  </p>
-                                  {lead.positive_evidence && lead.positive_evidence.length > 0 ? (
-                                    <ul className="space-y-1">
-                                      {lead.positive_evidence.map((ev, i) => (
-                                        <li
-                                          key={i}
-                                          className="text-xs text-emerald-800 flex items-center gap-1.5 bg-white/80 px-2 py-1 rounded-md border border-emerald-100"
-                                        >
-                                          <span className="font-bold text-emerald-600">+</span>
-                                          <span>{ev}</span>
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  ) : (
-                                    <p className="text-xs text-black/50 italic">No strong positive drivers detected.</p>
-                                  )}
-                                </div>
-
-                                <div className="p-3 rounded-xl bg-rose-50/50 border border-rose-100 space-y-1.5">
-                                  <p className="text-[11px] font-bold text-rose-900 uppercase tracking-wide flex items-center gap-1.5">
-                                    <AlertTriangle className="h-3.5 w-3.5 text-rose-600" />
-                                    Friction Signals (Pushed Conversion DOWN)
-                                  </p>
-                                  {lead.negative_evidence && lead.negative_evidence.length > 0 ? (
-                                    <ul className="space-y-1">
-                                      {lead.negative_evidence.map((ev, i) => (
-                                        <li
-                                          key={i}
-                                          className="text-xs text-rose-800 flex items-center gap-1.5 bg-white/80 px-2 py-1 rounded-md border border-rose-100"
-                                        >
-                                          <span className="font-bold text-rose-600">-</span>
-                                          <span>{ev}</span>
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  ) : (
-                                    <p className="text-xs text-black/50 italic">Low friction profile.</p>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* Lead Raw Attributes Grid */}
-                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 text-xs border-t border-black/5">
-                                <div className="flex items-center gap-2 text-black/60">
-                                  <Clock className="h-3.5 w-3.5 text-indigo-500/60" />
-                                  <span className="text-black/40">Website Time:</span>
-                                  <span className="font-semibold text-black">
-                                    {Math.round(lead.total_time_on_website)}s
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-2 text-black/60">
-                                  <Eye className="h-3.5 w-3.5 text-indigo-500/60" />
-                                  <span className="text-black/40">Total Visits:</span>
-                                  <span className="font-semibold text-black">{lead.total_visits}</span>
-                                </div>
-                                <div className="flex items-center gap-2 text-black/60">
-                                  <Briefcase className="h-3.5 w-3.5 text-indigo-500/60" />
-                                  <span className="text-black/40">Occupation:</span>
-                                  <span className="font-semibold text-black">{lead.occupation || "N/A"}</span>
-                                </div>
-                                <div className="flex items-center gap-2 text-black/60">
-                                  <Award className="h-3.5 w-3.5 text-indigo-500/60" />
-                                  <span className="text-black/40">Quality:</span>
-                                  <span className="font-semibold text-black">{lead.lead_quality || "N/A"}</span>
-                                </div>
-                                <div className="flex items-center gap-2 text-black/60">
-                                  <Globe className="h-3.5 w-3.5 text-indigo-500/60" />
-                                  <span className="text-black/40">Country:</span>
-                                  <span className="font-semibold text-black">{lead.country || "N/A"}</span>
-                                </div>
-                                <div className="flex items-center gap-2 text-black/60">
-                                  <MapPin className="h-3.5 w-3.5 text-indigo-500/60" />
-                                  <span className="text-black/40">City:</span>
-                                  <span className="font-semibold text-black">
-                                    {lead.city && lead.city !== "nan" ? lead.city : "N/A"}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-2 text-black/60">
-                                  <Mail className="h-3.5 w-3.5 text-indigo-500/60" />
-                                  <span className="text-black/40">Last Activity:</span>
-                                  <span className="font-semibold text-black">{lead.last_activity || "N/A"}</span>
-                                </div>
-                                <div className="flex items-center gap-2 text-black/60">
-                                  <Activity className="h-3.5 w-3.5 text-indigo-500/60" />
-                                  <span className="text-black/40">Specialization:</span>
-                                  <span className="font-semibold text-black">{lead.specialization || "N/A"}</span>
-                                </div>
-                              </div>
-
-                              {lead.tags && (
-                                <div className="flex items-center gap-2 text-xs pt-1">
-                                  <span className="text-black/40">Tags:</span>
-                                  <span className="px-2 py-0.5 rounded bg-black/5 text-black/70 font-medium">
-                                    {lead.tags}
-                                  </span>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              className="h-8 px-3.5 text-xs bg-black text-white hover:bg-black/85 disabled:opacity-40 shadow-xs"
+            >
+              Next
+              <ChevronRight className="h-3.5 w-3.5 ml-1" />
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

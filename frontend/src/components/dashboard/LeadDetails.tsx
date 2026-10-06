@@ -56,9 +56,9 @@ export function LeadDetails({
   const negativeEvidence = lead.negative_evidence ?? [];
 
   return (
-    <div className={`w-full shrink-0 bg-white border border-black/10 rounded-2xl flex flex-col min-h-[620px] shadow-sm z-10 transition-all duration-300 ${className}`}>
+    <div className={`w-full h-full max-h-full bg-white flex flex-col shadow-2xl overflow-hidden ${className}`}>
       {/* Header */}
-      <div className="p-5 border-b border-slate-100 flex items-start justify-between bg-slate-50/50">
+      <div className="p-5 border-b border-slate-100 flex items-start justify-between bg-slate-50/80 shrink-0">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Badge variant="outline" className="text-[10px] font-mono text-slate-500">
@@ -292,6 +292,40 @@ export function LeadDetails({
             </div>
           )}
         </div>
+      </div>
+
+      {/* Drawer Action Footer */}
+      <div className="p-4 border-t border-slate-200/80 bg-slate-50/90 flex items-center justify-between gap-3 shrink-0">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onClose}
+          className="text-xs border-slate-200 text-slate-700 hover:bg-slate-100"
+        >
+          Close Drawer
+        </Button>
+
+        <Button
+          type="button"
+          variant="default"
+          size="sm"
+          onClick={() => onGenerateOutreach(lead)}
+          disabled={outreachDraft.status === "loading"}
+          className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
+        >
+          {outreachDraft.status === "loading" ? (
+            <>
+              <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              Drafting Message...
+            </>
+          ) : (
+            <>
+              <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+              Generate Outreach Draft
+            </>
+          )}
+        </Button>
       </div>
     </div>
   );

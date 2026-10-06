@@ -95,6 +95,16 @@ class LeadItem(BaseModel):
     predicted_class: str = "Other"
     conversion_probability: float = 0.0
     confidence: float = 0.0
+    lead_score: int | None = None
+    lead_category: str | None = None
+    confidence_level: str | None = None
+    primary_driver: str | None = None
+    positive_evidence: list[str] = Field(default_factory=list)
+    negative_evidence: list[str] = Field(default_factory=list)
+    lock_strategy: str | None = None
+    total_visits: float | None = None
+    total_time_on_website: float | None = None
+    page_views_per_visit: float | None = None
 
 
 class LeadListResponse(BaseModel):

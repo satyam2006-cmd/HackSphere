@@ -5,7 +5,7 @@ import { LeadsTable } from "@/components/dashboard/LeadsTable";
 import { LeadDetails } from "@/components/dashboard/LeadDetails";
 import { OutreachPage } from "@/components/dashboard/OutreachPage";
 import { ConversionPanel } from "@/components/dashboard/ConversionPanel";
-import { LeadItem, ModelMetrics, OutreachDraftState, LeadListResponse, InjectedPipelineResponse, ScoredLead } from "@/types/crm";
+import { LeadItem, ModelMetrics, OutreachDraftState, LeadListResponse, InjectedPipelineResponse, ScoredLead, CleaningReport, PipelineDemoSummary } from "@/types/crm";
 import {
   Sparkles,
   Download,
@@ -14,18 +14,24 @@ import {
   Filter,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ContainerScroll } from "@/components/ui/container-scroll-animation";
 
 export function App() {
-  const [currentTab, setCurrentTab] = useState("dashboard");
+  const [currentTab, setCurrentTab] = useState("analytics");
   const [leads, setLeads] = useState<LeadItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<LeadItem | null>(null);
+  const [outreachLead, setOutreachLead] = useState<LeadItem | null>(null);
   const [modelMetrics, setModelMetrics] = useState<ModelMetrics | null>(null);
   const [intelligenceLeads, setIntelligenceLeads] = useState<LeadItem[]>([]);
   const [uploadedScoredLeads, setUploadedScoredLeads] = useState<ScoredLead[]>([]);
   const [uploadedRawInput, setUploadedRawInput] = useState("");
+  const [uploadedCleaningReport, setUploadedCleaningReport] = useState<CleaningReport | null>(null);
+  const [uploadedSummary, setUploadedSummary] = useState<PipelineDemoSummary | null>(null);
+  const [uploadedExecutionMs, setUploadedExecutionMs] = useState<number | null>(null);
   const inputFileRef = useRef<HTMLInputElement>(null);
+  const mainScrollRef = useRef<HTMLDivElement>(null);
 
   // Filters & Sorting state
   const [searchQuery, setSearchQuery] = useState("");
@@ -74,9 +80,9 @@ export function App() {
   }, [fetchLeads]);
 
   useEffect(() => {
-    // Keep browser refreshes on the dashboard instead of restoring an old nav hash.
+    // Keep browser refreshes on the analytics dashboard instead of restoring an old nav hash.
     window.history.replaceState(null, "", window.location.pathname);
-    setCurrentTab("dashboard");
+    setCurrentTab("analytics");
   }, []);
 
   useEffect(() => {
@@ -168,8 +174,24 @@ export function App() {
     page_views_per_visit: lead.page_views_per_visit,
   });
 
+  const handleInjectedPipelineResult = (result: InjectedPipelineResponse, rawInput: string) => {
+    setUploadedRawInput(rawInput);
+    setUploadedScoredLeads(result.leads);
+    setUploadedCleaningReport(result.cleaning_report);
+    setUploadedSummary(result.summary);
+    setUploadedExecutionMs(result.pipeline_execution_time_ms);
+
+    const mappedLeads: LeadItem[] = result.leads.map(mapScoredLeadToLeadItem);
+    setLeads(mappedLeads);
+    setIntelligenceLeads(mappedLeads);
+    setSelectedLead(null);
+    setOutreachDraft({ status: "idle" });
+    setError(null);
+  };
+
   const handleScoredLeadsChange = (scoredLeads: ScoredLead[]) => {
     const mappedLeads = scoredLeads.map(mapScoredLeadToLeadItem);
+    setLeads(mappedLeads);
     setIntelligenceLeads(mappedLeads);
     setUploadedScoredLeads(scoredLeads);
   };
@@ -199,36 +221,7 @@ export function App() {
         }
 
         const result = body as InjectedPipelineResponse;
-        setUploadedRawInput(raw);
-        setUploadedScoredLeads(result.leads);
-        const uploadedLeads: LeadItem[] = result.leads.map((lead) => ({
-          object_id: lead.lead_id,
-          lead_id: lead.lead_id,
-          name: lead.contact_name || lead.lead_id,
-          account_name: lead.company || "Uploaded account",
-          contact_name: lead.contact_name || "",
-          job_title: lead.job_title || "",
-          status: lead.lead_quality || lead.lead_category,
-          source: lead.lead_source || lead.lead_origin || "Uploaded file",
-          priority: lead.lead_category === "Hot" ? "High" : lead.lead_category === "Warm" ? "Normal" : "Low",
-          start_date: "",
-          end_date: "",
-          sales_unit: "",
-          sales_territory: lead.country || "",
-          owner_name: "",
-          note: lead.primary_driver || "",
-          features: {},
-          predicted_label: lead.lead_category === "Hot" ? 1 : lead.lead_category === "Warm" ? 2 : 0,
-          predicted_class: lead.lead_category,
-          conversion_probability: lead.predicted_probability,
-          confidence: lead.confidence_level === "Very High" ? 1 : lead.confidence_level === "High" ? 0.8 : lead.confidence_level === "Moderate" ? 0.6 : 0.35,
-        }));
-        setLeads(uploadedLeads);
-        setIntelligenceLeads(uploadedLeads);
-        setSelectedLead(null);
-        setOutreachDraft({ status: "idle" });
-        setError(null);
-        setCurrentTab("dashboard");
+        handleInjectedPipelineResult(result, raw);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to score uploaded file");
       }
@@ -245,13 +238,18 @@ export function App() {
 
   const handleNavigate = (href: string) => {
     const target = href.replace("#", "");
-    if (!["dashboard", "analytics", "leads", "intelligence", "outreach"].includes(target)) {
+    if (!["analytics", "leads", "intelligence", "outreach"].includes(target)) {
       return;
     }
+    // Always dismiss inspect drawer when navigating to another tab
+    setSelectedLead(null);
     setCurrentTab(target);
     window.history.replaceState(null, "", window.location.pathname);
-    const scrollTarget = target === "analytics" ? "dashboard" : target;
-    document.getElementById(scrollTarget)?.scrollIntoView({ behavior: "smooth" });
+    if (target === "analytics") {
+      document.getElementById("analytics")?.scrollIntoView({ behavior: "smooth" });
+    } else if (target === "leads") {
+      document.getElementById("leads")?.scrollIntoView({ behavior: "smooth" });
+    }
   };
 
   return (
@@ -274,13 +272,12 @@ export function App() {
             logo={<span className="text-indigo-600">✦</span>}
             logoAlt="HackSphere navigation"
             items={[
-              { label: "Home", href: "#dashboard" },
               { label: "Analytics", href: "#analytics" },
               { label: "Leads", href: "#leads" },
               { label: "Intelligence", href: "#intelligence" },
               { label: "Outreach", href: "#outreach" },
             ]}
-            activeHref={`#${currentTab === "dashboard" ? "dashboard" : currentTab}`}
+            activeHref={`#${currentTab}`}
             className="flex"
             ease="power2.easeOut"
             baseColor="#0f172a"
@@ -338,7 +335,7 @@ export function App() {
 
         {/* Scrollable Dashboard Body */}
         <div className="flex-1 flex min-h-0 overflow-hidden">
-          <main className="flex-1 overflow-y-auto p-6 space-y-6">
+          <main ref={mainScrollRef} className="flex-1 overflow-y-auto p-4 sm:p-6 pb-36 space-y-6">
             {/* Error banner if any */}
             {error && (
               <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between">
@@ -355,59 +352,95 @@ export function App() {
             {currentTab === "outreach" ? (
               <OutreachPage
                 leads={intelligenceLeads.length > 0 ? intelligenceLeads : leads}
-                selectedLead={selectedLead}
+                selectedLead={outreachLead}
                 outreachDraft={outreachDraft}
-                onSelectLead={handleSelectLead}
+                onSelectLead={(lead) => {
+                  setOutreachLead(lead);
+                  setOutreachDraft({ status: "idle" });
+                }}
                 onGenerateOutreach={handleGenerateOutreach}
               />
             ) : currentTab === "intelligence" ? (
               <section id="intelligence">
                 <ConversionPanel
                   onScoredLeadsChange={handleScoredLeadsChange}
+                  onInjectedPipelineResult={handleInjectedPipelineResult}
+                  onInspectLead={handleSelectLead}
                   sharedScoredLeads={uploadedScoredLeads}
                   sharedRawInput={uploadedRawInput}
+                  sharedCleaningReport={uploadedCleaningReport}
+                  sharedSummary={uploadedSummary}
+                  sharedExecutionMs={uploadedExecutionMs}
                 />
               </section>
             ) : (
               <>
-                <section id="dashboard">
+                <section id="analytics">
                   <KPIStats leads={leads} metrics={modelMetrics} />
                 </section>
-                <section id="leads">
-                  <LeadsTable
-                    leads={leads}
-                    selectedLead={selectedLead}
-                    onSelectLead={handleSelectLead}
-                    searchQuery={searchQuery}
-                    onSearchChange={setSearchQuery}
-                    statusFilter={statusFilter}
-                    onStatusFilterChange={setStatusFilter}
-                    priorityFilter={priorityFilter}
-                    onPriorityFilterChange={setPriorityFilter}
-                    sortBy={sortBy}
-                    onSortByChange={setSortBy}
-                    onApplyFilters={(filters) => {
-                      setSearchQuery(filters.searchQuery);
-                      setStatusFilter(filters.statusFilter);
-                      setPriorityFilter(filters.priorityFilter);
-                      setSortBy(filters.sortBy);
-                    }}
-                  />
+                <section id="leads" className="w-full">
+                  <ContainerScroll
+                    scrollContainerRef={mainScrollRef}
+                    titleComponent={
+                      <div className="flex flex-col items-center">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 mb-2 shadow-xs">
+                          <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
+                          Live ML Scored Pipeline
+                        </span>
+                        <h2 className="text-2xl sm:text-4xl font-bold tracking-tight text-slate-900">
+                          Prioritized CRM Lead Queue
+                        </h2>
+                        <p className="text-sm text-slate-500 mt-1 max-w-lg mx-auto">
+                          Interactive 3D conversion intelligence matrix powered by calibrated XGBoost scoring.
+                        </p>
+                      </div>
+                    }
+                  >
+                    <LeadsTable
+                      leads={leads}
+                      selectedLead={selectedLead}
+                      onSelectLead={handleSelectLead}
+                      searchQuery={searchQuery}
+                      onSearchChange={setSearchQuery}
+                      statusFilter={statusFilter}
+                      onStatusFilterChange={setStatusFilter}
+                      priorityFilter={priorityFilter}
+                      onPriorityFilterChange={setPriorityFilter}
+                      sortBy={sortBy}
+                      onSortByChange={setSortBy}
+                      onApplyFilters={(filters) => {
+                        setSearchQuery(filters.searchQuery);
+                        setStatusFilter(filters.statusFilter);
+                        setPriorityFilter(filters.priorityFilter);
+                        setSortBy(filters.sortBy);
+                      }}
+                    />
+                  </ContainerScroll>
                 </section>
               </>
             )}
           </main>
 
-          {/* Slide-out Intelligence & Outreach Drawer */}
+          {/* Slide-over Target Inspection & Intelligence Drawer */}
           {selectedLead && currentTab !== "outreach" && (
-            <section id="outreach" className="w-full lg:w-[480px] shrink-0">
-            <LeadDetails
-              lead={selectedLead}
-              onClose={() => setSelectedLead(null)}
-              outreachDraft={outreachDraft}
-              onGenerateOutreach={handleGenerateOutreach}
-            />
-            </section>
+            <div className="fixed inset-0 z-50 overflow-hidden flex justify-end">
+              {/* Semi-transparent backdrop to focus on drawer */}
+              <div
+                className="fixed inset-0 bg-slate-900/30 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+                onClick={() => setSelectedLead(null)}
+              />
+
+              {/* Smooth Full-Height Slide-over Panel */}
+              <div className="relative w-full sm:w-[520px] md:w-[580px] lg:w-[620px] h-full bg-white shadow-2xl flex flex-col z-10 border-l border-slate-200 animate-in slide-in-from-right duration-300">
+                <LeadDetails
+                  lead={selectedLead}
+                  onClose={() => setSelectedLead(null)}
+                  outreachDraft={outreachDraft}
+                  onGenerateOutreach={handleGenerateOutreach}
+                  className="rounded-none border-0 h-full"
+                />
+              </div>
+            </div>
           )}
         </div>
       </div>

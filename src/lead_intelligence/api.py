@@ -421,7 +421,7 @@ def get_scored_leads(
         score_val = int(row.get("Lead_Score", 0))
         cat_val = _safe_str(row.get("Lead_Category"), "Cold")
         proba_val = _safe_float(row.get("Predicted_Probability"))
-        lock_pct = round(proba_val * 100, 1)
+        lock_pct = round(float(proba_val) * 100, 3)
 
         conf_level = (
             "Very High" if score_val >= 90

@@ -371,7 +371,7 @@ def score_lead(features: dict[str, Any]) -> dict[str, Any]:
         category = "Cold"
         confidence_level = "Low"
 
-    lock_chance_pct = round(proba * 100, 1)
+    lock_chance_pct = round(float(proba) * 100, 3)
     evidence = explain_features(features, pipeline)
     lock_strategy = get_lock_strategy(category, lead_score)
 
@@ -476,7 +476,7 @@ def get_demo_20_pipeline(run_live: bool = False) -> dict[str, Any]:
             "predicted_converted": int(row.get("Predicted_Converted", 0)),
             "lead_score": int(row.get("Lead_Score", 0)),
             "lead_category": str(row.get("Lead_Category", "Cold")),
-            "lock_chance_pct": round(float(row.get("Predicted_Probability", 0.0)) * 100, 1),
+            "lock_chance_pct": round(float(row.get("Predicted_Probability", 0.0)) * 100, 3),
             "confidence_level": (
                 "Very High" if int(row.get("Lead_Score", 0)) >= 90
                 else "High" if int(row.get("Lead_Score", 0)) >= 60
@@ -762,7 +762,7 @@ def clean_and_process_injected_dataset(raw_records: list[dict[str, Any]]) -> dic
 
     for i, p in enumerate(probas):
         lead_score = int(round(p * 100))
-        lock_pct = round(p * 100, 1)
+        lock_pct = round(float(p) * 100, 3)
         row = cleaned_records[i]
 
         if lead_score >= HOT_THRESHOLD:

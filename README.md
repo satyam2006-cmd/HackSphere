@@ -56,21 +56,33 @@ See the [project status and roadmap](docs/DOCUMENT.md) for what is complete and
 what remains. The original [technical roadmap](docs/ROADMAP.md) is also retained
 for milestone planning.
 
-## Quick start
+## Running the Application
 
-```bash
-python -m venv .venv
-# Windows PowerShell: .\.venv\Scripts\Activate.ps1
-# macOS/Linux: source .venv/bin/activate
-python -m pip install -e ".[dev]"
-python -m uvicorn lead_intelligence.api:app --reload
+### 1. Backend (FastAPI & ML Inference Engine)
+
+Navigate to `src/lead_intelligence` and run the Uvicorn server:
+
+```powershell
+cd src/lead_intelligence
+python -m uvicorn lead_intelligence.api:app
 ```
 
-Then open `http://127.0.0.1:8000/health`.
+The API service will start on `http://127.0.0.1:8000`. You can inspect API health at `/health` and interactive OpenAPI documentation at `http://127.0.0.1:8000/docs`.
 
-Run the tests with:
+### 2. Frontend (React + Vite Web Dashboard)
 
-```bash
+In a separate terminal from the repository root:
+
+```powershell
+cd frontend
+npm run dev
+```
+
+The web dashboard will be available at `http://localhost:5173`.
+
+### 3. Running Tests
+
+```powershell
 pytest
 ```
 
