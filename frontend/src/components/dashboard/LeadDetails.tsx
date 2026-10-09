@@ -14,6 +14,7 @@ import {
   FileText,
   BarChart2,
   RefreshCw,
+  Mail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -70,6 +71,12 @@ export function LeadDetails({
           </div>
           <h2 className="text-lg font-bold text-slate-900 leading-snug">{lead.name}</h2>
           <p className="text-xs text-slate-500 mt-0.5">{lead.account_name || "Enterprise Lead"}</p>
+          {lead.email && (
+            <div className="flex items-center gap-1.5 text-xs text-indigo-600 font-medium mt-1">
+              <Mail className="h-3.5 w-3.5 shrink-0" />
+              <span>{lead.email}</span>
+            </div>
+          )}
         </div>
         <Button
           variant="ghost"

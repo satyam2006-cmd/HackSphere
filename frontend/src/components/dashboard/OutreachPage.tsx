@@ -22,7 +22,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { LeadItem, OutreachDraftState } from "@/types/crm";
+import { LeadItem, OutreachDraftState, SmtpConfig, OutreachEmailSendResult } from "@/types/crm";
 
 interface OutreachPageProps {
   leads: LeadItem[];
@@ -52,6 +52,31 @@ export function OutreachPage({
   const [copied, setCopied] = useState(false);
   const [approved, setApproved] = useState(false);
 
+  // SMTP Mailer & Outreach Send state
+  const [smtpConfig, setSmtpConfig] = useState<SmtpConfig | null>(null);
+  const [isSimulate, setIsSimulate] = useState<boolean>(true);
+  const [recipientEmail, setRecipientEmail] = useState("");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState<OutreachEmailSendResult | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
+
+  // Fetch active SMTP configuration
+  useEffect(() => {
+    fetch("/outreach/smtp/config")
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json() as Promise<SmtpConfig>;
+      })
+      .then((cfg) => {
+        setSmtpConfig(cfg);
+        setIsSimulate(cfg.simulate);
+      })
+      .catch((err) => {
+        console.warn("Could not retrieve SMTP configuration:", err);
+      });
+  }, []);
+
   // Sync draft text when a new draft is received
   useEffect(() => {
     if (outreachDraft.status === "ready") {
@@ -60,11 +85,22 @@ export function OutreachPage({
     }
   }, [outreachDraft]);
 
-  // Reset editable draft when selected lead changes
+  // Reset editable draft and email fields when selected lead changes
   useEffect(() => {
     setEditableDraft("");
     setApproved(false);
-  }, [selectedLead?.object_id]);
+    setSendResult(null);
+    setSendError(null);
+    if (selectedLead) {
+      setRecipientEmail(selectedLead.email || "");
+      setEmailSubject(
+        `HackSphere Solution Brief: Accelerating Conversion for ${selectedLead.account_name || selectedLead.name}`
+      );
+    } else {
+      setRecipientEmail("");
+      setEmailSubject("");
+    }
+  }, [selectedLead?.object_id, selectedLead?.email]);
 
   // Filter leads based on category and search
   const filteredLeads = leads.filter((lead) => {
@@ -102,9 +138,48 @@ export function OutreachPage({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleApprove = () => {
-    setApproved(true);
-    setTimeout(() => setApproved(false), 3500);
+  const handleSendEmail = async () => {
+    const targetEmail = recipientEmail.trim();
+    if (!targetEmail) {
+      setSendError("Recipient email address must not be blank.");
+      return;
+    }
+    const draftText = editableDraft || (outreachDraft.status === "ready" ? outreachDraft.draft : "");
+    if (!draftText.trim()) {
+      setSendError("Email draft content is required before sending.");
+      return;
+    }
+
+    setSending(true);
+    setSendError(null);
+    setSendResult(null);
+
+    try {
+      const res = await fetch("/outreach/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipient_email: targetEmail,
+          subject: emailSubject.trim() || `Outreach for ${selectedLead?.name}`,
+          body: draftText,
+          lead_id: selectedLead?.lead_id || "",
+          force_simulate: isSimulate,
+        }),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.detail || `Send failed with code ${res.status}`);
+      }
+
+      const result: OutreachEmailSendResult = await res.json();
+      setSendResult(result);
+      setApproved(true);
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : "Failed to send email");
+    } finally {
+      setSending(false);
+    }
   };
 
   const getCategoryBadgeClass = (category: string) => {
@@ -147,16 +222,43 @@ export function OutreachPage({
             </p>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="p-3 rounded-xl border-2 border-black bg-slate-50 text-center min-w-[100px]">
-              <p className="text-[10px] uppercase font-bold text-slate-500">Pipeline Leads</p>
-              <p className="text-base font-black text-black">{leads.length}</p>
-            </div>
-            <div className="p-3 rounded-xl border-2 border-black bg-slate-50 text-center min-w-[100px]">
-              <p className="text-[10px] uppercase font-bold text-slate-500">Actionable Now</p>
-              <p className="text-base font-black text-rose-600">
-                {leads.filter((l) => (l.lead_category || l.predicted_class) === "Hot" || l.conversion_probability >= 0.7).length}
-              </p>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 shrink-0">
+            {smtpConfig && (
+              <div className="p-2.5 rounded-xl border border-black/20 bg-slate-50 text-xs flex flex-col gap-1">
+                <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                  <span className={`h-2 w-2 rounded-full ${smtpConfig.is_configured ? "bg-emerald-500" : "bg-amber-500"}`} />
+                  <span>SMTP: {smtpConfig.host || "smtp.gmail.com"}:{smtpConfig.port}</span>
+                </div>
+                <div className="flex items-center gap-2 text-[11px] text-slate-600">
+                  <span className="truncate max-w-[140px]" title={smtpConfig.user}>
+                    {smtpConfig.user || "Configured"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsSimulate(!isSimulate)}
+                    className={`px-2 py-0.5 rounded font-bold border transition-colors ${
+                      isSimulate
+                        ? "bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200"
+                        : "bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200"
+                    }`}
+                  >
+                    {isSimulate ? "Simulate Mode" : "Live SMTP"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2">
+              <div className="p-3 rounded-xl border-2 border-black bg-slate-50 text-center min-w-[90px]">
+                <p className="text-[10px] uppercase font-bold text-slate-500">Pipeline Leads</p>
+                <p className="text-base font-black text-black">{leads.length}</p>
+              </div>
+              <div className="p-3 rounded-xl border-2 border-black bg-slate-50 text-center min-w-[90px]">
+                <p className="text-[10px] uppercase font-bold text-slate-500">Actionable Now</p>
+                <p className="text-base font-black text-rose-600">
+                  {leads.filter((l) => (l.lead_category || l.predicted_class) === "Hot" || l.conversion_probability >= 0.7).length}
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -242,6 +344,12 @@ export function OutreachPage({
                           <Building2 className="h-3 w-3 shrink-0" />
                           {lead.account_name || "Enterprise Account"}
                         </p>
+                        {lead.email && (
+                          <p className={`text-[10px] truncate flex items-center gap-1 mt-0.5 ${isSelected ? "text-indigo-200 font-medium" : "text-indigo-600 font-medium"}`}>
+                            <Mail className="h-2.5 w-2.5 shrink-0" />
+                            {lead.email}
+                          </p>
+                        )}
                       </div>
 
                       <span
@@ -462,16 +570,97 @@ export function OutreachPage({
 
                     <Button
                       size="sm"
-                      onClick={handleApprove}
-                      disabled={approved}
+                      onClick={handleSendEmail}
+                      disabled={sending || approved}
                       className="h-8 px-3.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg flex items-center gap-1.5 shadow-xs"
                     >
-                      {approved ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
-                      {approved ? "Campaign Queued!" : "Approve & Send"}
+                      {sending ? (
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                      ) : approved ? (
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                      ) : (
+                        <Send className="h-3.5 w-3.5" />
+                      )}
+                      {sending
+                        ? "Dispatching via SMTP…"
+                        : approved
+                        ? "Sent Successfully!"
+                        : isSimulate
+                        ? "Simulate Outreach Send"
+                        : "Send Live via SMTP"}
                     </Button>
                   </div>
                 )}
               </div>
+
+              {/* Recipient & Subject Configuration when in Email Mode */}
+              {channel === "email" && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                      Recipient Email:
+                    </label>
+                    <div className="relative">
+                      <Mail className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                      <input
+                        type="email"
+                        value={recipientEmail}
+                        onChange={(e) => setRecipientEmail(e.target.value)}
+                        placeholder="lead.recipient@company.com"
+                        className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 font-medium focus:outline-none focus:border-black text-xs"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                      Email Subject:
+                    </label>
+                    <input
+                      type="text"
+                      value={emailSubject}
+                      onChange={(e) => setEmailSubject(e.target.value)}
+                      placeholder="Subject line..."
+                      className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 font-medium focus:outline-none focus:border-black text-xs"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Dispatch Feedback Alert */}
+              {sendResult && (
+                <div
+                  className={`p-3 rounded-xl border text-xs flex items-start gap-2.5 ${
+                    sendResult.status === "sent"
+                      ? "bg-emerald-50 border-emerald-300 text-emerald-900"
+                      : "bg-sky-50 border-sky-300 text-sky-900"
+                  }`}
+                >
+                  <CheckCircle2
+                    className={`h-4 w-4 shrink-0 mt-0.5 ${
+                      sendResult.status === "sent" ? "text-emerald-600" : "text-sky-600"
+                    }`}
+                  />
+                  <div className="min-w-0">
+                    <p className="font-bold">
+                      {sendResult.status === "sent"
+                        ? "Outreach Email Successfully Dispatched via SMTP!"
+                        : "Outreach Delivery Simulated Successfully"}
+                    </p>
+                    <p className="text-[11px] mt-0.5">
+                      Recipient: <strong className="font-mono">{sendResult.recipient}</strong> • Message ID:{" "}
+                      <strong className="font-mono">{sendResult.message_id}</strong>
+                    </p>
+                    <p className="text-[11px] text-slate-600 mt-0.5">{sendResult.details}</p>
+                  </div>
+                </div>
+              )}
+
+              {sendError && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-300 text-rose-900 text-xs flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0" />
+                  <span>{sendError}</span>
+                </div>
+              )}
 
               {outreachDraft.status === "loading" ? (
                 <div className="p-12 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 flex flex-col items-center justify-center text-center space-y-2">

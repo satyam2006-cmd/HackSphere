@@ -148,6 +148,7 @@ export function App() {
     account_name: lead.company || "Scored account",
     contact_name: lead.contact_name || "",
     job_title: lead.job_title || "",
+    email: lead.email || "",
     status: lead.lead_quality || lead.lead_category,
     source: lead.lead_source || lead.lead_origin || "Intelligence pipeline",
     priority: lead.lead_category === "Hot" ? "High" : lead.lead_category === "Warm" ? "Normal" : "Low",

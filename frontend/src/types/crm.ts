@@ -7,6 +7,7 @@ export interface LeadItem {
   account_name: string;
   contact_name: string;
   job_title: string;
+  email?: string;
   status: string;
   source: string;
   priority: string;
@@ -51,6 +52,23 @@ export type OutreachDraftState =
   | { status: "ready"; draft: string }
   | { status: "error"; error?: string };
 
+export interface SmtpConfig {
+  host: string;
+  port: number;
+  user: string;
+  from_email: string;
+  admin_email: string;
+  simulate: boolean;
+  is_configured: boolean;
+}
+
+export interface OutreachEmailSendResult {
+  status: "sent" | "simulated" | "error";
+  recipient: string;
+  message_id: string;
+  details: string;
+}
+
 // ── Conversion Pipeline Types (from XGBoost notebook) ──
 
 export interface ScoredLead {
@@ -67,6 +85,7 @@ export interface ScoredLead {
   contact_name?: string;
   company?: string;
   job_title?: string;
+  email?: string;
   predicted_probability: number;
   predicted_converted: number;
   actual_converted: number;

@@ -228,6 +228,11 @@ def load_synthetic_leads() -> list[LeadItem]:
             account_name=row.get("Account_Party_Name") or "",
             contact_name=row.get("Main_Contact_Person_Name") or "",
             job_title=row.get("Contact_Information_Job_Title") or "",
+            email=row.get("Email") or row.get("Email Address") or row.get("email") or (
+                f"{row.get('Main_Contact_Person_Name', 'contact').lower().replace(' ', '.')}@example.com"
+                if row.get("Main_Contact_Person_Name")
+                else f"lead.{idx}@example.com"
+            ),
             status=row.get("Status_Text") or "Unqualified",
             source=row.get("Source_Text") or "Direct Inquiry",
             priority=row.get("Priority_Text") or "Normal",

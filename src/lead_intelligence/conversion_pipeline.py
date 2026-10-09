@@ -610,16 +610,45 @@ def get_pipeline_metrics() -> dict[str, Any]:
 
 _RAW_SAMPLE_JSON_PATH: Final = _ROOT / "raw_leads_for_injection.json"
 _RAW_SAMPLE_CSV_PATH: Final = _ROOT / "raw_leads_for_injection.csv"
+_FORM_RESPONSE_CSV_PATH: Final = _ROOT / "HackSphere Outreach - Add Recipients (Responses) - Form response.csv"
+
+
+def get_form_response_leads() -> list[dict[str, Any]]:
+    """Return raw records from the outreach Google Form responses CSV."""
+    import csv
+
+    if _FORM_RESPONSE_CSV_PATH.exists():
+        try:
+            with open(_FORM_RESPONSE_CSV_PATH, encoding="utf-8") as f:
+                return list(csv.DictReader(f))
+        except Exception as exc:
+            logger.warning("Failed to read form responses CSV: %s", exc)
+    return []
 
 
 def get_raw_sample_injection_leads() -> list[dict[str, Any]]:
-    """Return the raw 25-lead sample dataset for frontend injection testing."""
+    """Return the raw sample dataset for frontend injection testing."""
+    import csv
+
+    if _FORM_RESPONSE_CSV_PATH.exists():
+        form_leads = get_form_response_leads()
+        if form_leads:
+            return form_leads
+
     if _RAW_SAMPLE_JSON_PATH.exists():
         try:
             with open(_RAW_SAMPLE_JSON_PATH, encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
             pass
+
+    if _RAW_SAMPLE_CSV_PATH.exists():
+        try:
+            with open(_RAW_SAMPLE_CSV_PATH, encoding="utf-8") as f:
+                return list(csv.DictReader(f))
+        except Exception:
+            pass
+
     return []
 
 
@@ -688,6 +717,16 @@ def clean_and_process_injected_dataset(raw_records: list[dict[str, Any]]) -> dic
         "lead_quality": "Lead Quality",
         "tag": "Tags",
         "tags": "Tags",
+        "email": "email",
+        "email address": "email",
+        "email_address": "email",
+        "email address ": "email",
+        "mail": "email",
+        "contact_email": "email",
+        "recipient_email": "email",
+        "timestamp": "Timestamp",
+        "notes": "Note",
+        "note": "Note",
         "occupation": "What is your current occupation",
         "city": "City",
         "country": "Country",
@@ -709,6 +748,7 @@ def clean_and_process_injected_dataset(raw_records: list[dict[str, Any]]) -> dic
             cleaned_row[target_key] = v
 
         cleaned_row["Lead_ID"] = str(cleaned_row.get("Lead_ID") or f"INJECT-{idx}")
+        cleaned_row["email"] = str(cleaned_row.get("email") or "").strip()
         if not cleaned_row.get("contact_name"):
             cleaned_row["contact_name"] = f"Lead Contact #{idx}"
         if not cleaned_row.get("company"):
@@ -798,6 +838,7 @@ def clean_and_process_injected_dataset(raw_records: list[dict[str, Any]]) -> dic
             "contact_name": row["contact_name"],
             "company": row["company"],
             "job_title": row["job_title"],
+            "email": _safe_str(row.get("email")),
             "lead_score": lead_score,
             "lead_category": cat,
             "lock_chance_pct": lock_pct,

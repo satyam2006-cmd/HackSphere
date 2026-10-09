@@ -991,6 +991,12 @@ export function ConversionPanel({
                                   </span>
                                 )}
                               </div>
+                              {lead.email && (
+                                <div className="flex items-center gap-1 text-[11px] text-indigo-600 font-medium truncate mt-0.5">
+                                  <Mail className="h-3 w-3 shrink-0" />
+                                  <span className="truncate">{lead.email}</span>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </TableCell>

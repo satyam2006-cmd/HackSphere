@@ -81,6 +81,7 @@ class LeadItem(BaseModel):
     account_name: str = ""
     contact_name: str = ""
     job_title: str = ""
+    email: str = ""
     status: str
     source: str
     priority: str
@@ -170,6 +171,7 @@ class ScoredLeadItem(BaseModel):
     contact_name: str = ""
     company: str = ""
     job_title: str = ""
+    email: str = ""
     lead_score: int = 0
     lead_category: str = "Cold"
     lock_chance_pct: float = 0.0
@@ -271,6 +273,67 @@ class ConversionPipelineMetricsResponse(BaseModel):
     description: str = ""
 
 
+# ── Outreach & SMTP schemas ───────────────────────────────────────────────────
+
+
+class SmtpConfigResponse(BaseModel):
+    """Current SMTP provider status and configuration details."""
+
+    host: str
+    port: int
+    user: str
+    from_email: str
+    admin_email: str
+    simulate: bool
+    is_configured: bool
+
+
+class OutreachEmailSendRequest(BaseModel):
+    """Request payload to send an outreach email to a lead."""
+
+    recipient_email: str
+    subject: str
+    body: str
+    lead_id: str = ""
+    force_simulate: bool = False
+
+
+class OutreachEmailSendResponse(BaseModel):
+    """Result of an outreach email dispatch."""
+
+    status: str
+    recipient: str
+    message_id: str
+    details: str
+
+
+class BulkOutreachEmailItem(BaseModel):
+    """Single item in a bulk email outreach batch."""
+
+    recipient_email: str
+    subject: str
+    body: str
+    lead_id: str = ""
+
+
+class BulkOutreachEmailRequest(BaseModel):
+    """Batch outreach dispatch request."""
+
+    items: list[BulkOutreachEmailItem]
+    force_simulate: bool = False
+
+
+class BulkOutreachEmailResponse(BaseModel):
+    """Batch outreach dispatch results summary."""
+
+    results: list[OutreachEmailSendResponse]
+    total: int
+    sent_count: int
+    simulated_count: int
+    error_count: int
+
+
+
 __all__ = [
     "CleaningReport",
     "ConversionBatchPredictRequest",
@@ -292,6 +355,12 @@ __all__ = [
     "PipelineDemoSummary",
     "ScoredLeadItem",
     "ScoredLeadListResponse",
+    "SmtpConfigResponse",
+    "OutreachEmailSendRequest",
+    "OutreachEmailSendResponse",
+    "BulkOutreachEmailItem",
+    "BulkOutreachEmailRequest",
+    "BulkOutreachEmailResponse",
     "StrictFiniteFloat",
     "StrictHistoricalLabel",
     "StrictText",
