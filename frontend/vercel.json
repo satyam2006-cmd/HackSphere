@@ -4,9 +4,9 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/historical/:path*", "destination": "${VITE_API_URL}/historical/:path*" },
-    { "source": "/conversion/:path*", "destination": "${VITE_API_URL}/conversion/:path*" },
-    { "source": "/outreach/:path*", "destination": "${VITE_API_URL}/outreach/:path*" },
-    { "source": "/health", "destination": "${VITE_API_URL}/health" }
+    { "source": "/historical/:path*", "destination": "https://hacksphere-production.up.railway.app/historical/:path*" },
+    { "source": "/conversion/:path*", "destination": "https://hacksphere-production.up.railway.app/conversion/:path*" },
+    { "source": "/outreach/:path*", "destination": "https://hacksphere-production.up.railway.app/outreach/:path*" },
+    { "source": "/health", "destination": "https://hacksphere-production.up.railway.app/health" }
   ]
 }

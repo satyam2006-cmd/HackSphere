@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ContainerScroll } from "@/components/ui/container-scroll-animation";
+import { apiUrl } from "./config";
 
 export function App() {
   const [currentTab, setCurrentTab] = useState("analytics");
@@ -56,7 +57,7 @@ export function App() {
       if (priorityFilter !== "all") params.append("priority", priorityFilter);
       params.append("sort_by", sortBy);
 
-      const res = await fetch(`/historical/leads?${params.toString()}`);
+      const res = await fetch(apiUrl(`/historical/leads?${params.toString()}`));
       if (!res.ok) {
         throw new Error(`Failed to load leads: ${res.status}`);
       }
@@ -86,7 +87,7 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    fetch("/historical/model-metrics")
+    fetch(apiUrl("/historical/model-metrics"))
       .then((response) => {
         if (!response.ok) throw new Error(`Failed to load model metrics: ${response.status}`);
         return response.json() as Promise<ModelMetrics>;
@@ -102,7 +103,7 @@ export function App() {
     try {
       setOutreachDraft({ status: "loading" });
 
-      const res = await fetch("/historical/outreach-draft", {
+      const res = await fetch(apiUrl("/historical/outreach-draft"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -211,7 +212,7 @@ export function App() {
         const payload = raw.startsWith("[") || raw.startsWith("{")
           ? { leads: Array.isArray(JSON.parse(raw)) ? JSON.parse(raw) : [JSON.parse(raw)] }
           : { csv_text: raw };
-        const response = await fetch("/conversion/inject-pipeline", {
+        const response = await fetch(apiUrl("/conversion/inject-pipeline"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),

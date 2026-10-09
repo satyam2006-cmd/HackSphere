@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
+import { apiUrl } from "@/config";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -235,8 +236,8 @@ export function ConversionPanel({
       setLoading(true);
       setError(null);
       const [demoRes, metricsRes] = await Promise.all([
-        fetch("/conversion/demo-pipeline-20"),
-        fetch("/conversion/metrics"),
+        fetch(apiUrl("/conversion/demo-pipeline-20")),
+        fetch(apiUrl("/conversion/metrics")),
       ]);
 
       if (!demoRes.ok) throw new Error(`Verification dataset error: ${demoRes.status}`);
@@ -274,8 +275,8 @@ export function ConversionPanel({
       params.append("order", "desc");
 
       const [leadsRes, metricsRes] = await Promise.all([
-        fetch(`/conversion/scored-leads?${params.toString()}`),
-        fetch("/conversion/metrics"),
+        fetch(apiUrl(`/conversion/scored-leads?${params.toString()}`)),
+        fetch(apiUrl("/conversion/metrics")),
       ]);
 
       if (!leadsRes.ok) throw new Error(`Full leads query error: ${leadsRes.status}`);
@@ -301,7 +302,7 @@ export function ConversionPanel({
     try {
       setBenchmarking(true);
       setError(null);
-      const res = await fetch("/conversion/demo-pipeline-20?run_live=true");
+      const res = await fetch(apiUrl("/conversion/demo-pipeline-20?run_live=true"));
       if (!res.ok) throw new Error(`Live benchmark failed: ${res.status}`);
       const data: PipelineDemoResponse = await res.json();
       setLeads(data.leads);
@@ -324,7 +325,7 @@ export function ConversionPanel({
   const loadSampleRawDataset = async () => {
     try {
       setLoading(true);
-      const res = await fetch("/conversion/sample-injection-dataset");
+      const res = await fetch(apiUrl("/conversion/sample-injection-dataset"));
       if (!res.ok) throw new Error("Failed to load sample raw dataset");
       const sample = await res.json();
       setRawInputText(JSON.stringify(sample, null, 2));
@@ -358,7 +359,7 @@ export function ConversionPanel({
         payload = { csv_text: trimmed };
       }
 
-      const res = await fetch("/conversion/inject-pipeline", {
+      const res = await fetch(apiUrl("/conversion/inject-pipeline"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

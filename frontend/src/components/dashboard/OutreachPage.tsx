@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { apiUrl } from "@/config";
 import {
   Send,
   Sparkles,
@@ -63,7 +64,7 @@ export function OutreachPage({
 
   // Fetch active SMTP configuration
   useEffect(() => {
-    fetch("/outreach/smtp/config")
+    fetch(apiUrl("/outreach/smtp/config"))
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json() as Promise<SmtpConfig>;
@@ -155,7 +156,7 @@ export function OutreachPage({
     setSendResult(null);
 
     try {
-      const res = await fetch("/outreach/send-email", {
+      const res = await fetch(apiUrl("/outreach/send-email"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
