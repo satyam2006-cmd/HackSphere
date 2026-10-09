@@ -15,11 +15,17 @@ from lead_intelligence.conversion_pipeline import (
     clean_and_process_injected_dataset,
     get_conversion_pipeline,
     get_demo_20_pipeline,
+    get_form_response_leads,
     get_lock_strategy,
     get_pipeline_metrics,
     get_raw_sample_injection_leads,
     load_scored_leads_from_csv,
     score_lead,
+)
+from lead_intelligence.smtp_mailer import (
+    get_smtp_config,
+    send_bulk_outreach_emails,
+    send_outreach_email,
 )
 from lead_intelligence.historical_features import HISTORICAL_FINAL_FEATURE_COLUMNS
 from lead_intelligence.historical_llm import create_historical_outreach_adapter
@@ -50,12 +56,40 @@ from lead_intelligence.schemas import (
     PipelineDemoResponse,
     ScoredLeadItem,
     ScoredLeadListResponse,
+    SmtpConfigResponse,
+    OutreachEmailSendRequest,
+    OutreachEmailSendResponse,
+    BulkOutreachEmailRequest,
+    BulkOutreachEmailResponse,
 )
+
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(
     title="HackSphere",
     summary="Privacy-safe lead scoring and outreach drafting",
     version="0.1.0",
+)
+
+# ---------------------------------------------------------------------------
+# CORS – required when frontend (Vercel) and backend (Railway) are on
+# different origins.  Set CORS_ORIGINS as a comma-separated list of allowed
+# origins in Railway, e.g. "https://hacksphere.vercel.app".
+# Defaults to ["*"] for local development.
+# ---------------------------------------------------------------------------
+_cors_origins_raw = os.getenv("CORS_ORIGINS", "*")
+_cors_origins = (
+    [o.strip() for o in _cors_origins_raw.split(",") if o.strip()]
+    if _cors_origins_raw != "*"
+    else ["*"]
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Pre-load default trained baseline model
@@ -167,6 +201,97 @@ def historical_outreach_draft(
         ) from exc
 
     return HistoricalOutreachDraftResponse(draft=adapter.draft(prompt))
+
+
+@app.get(
+    "/outreach/smtp/config",
+    response_model=SmtpConfigResponse,
+    tags=["outreach"],
+)
+def get_smtp_status() -> SmtpConfigResponse:
+    """Return active SMTP configuration without revealing private passwords."""
+    cfg = get_smtp_config()
+    return SmtpConfigResponse(
+        host=str(cfg.get("host", "")),
+        port=int(cfg.get("port", 465)),
+        user=str(cfg.get("user", "")),
+        from_email=str(cfg.get("from_email", "")),
+        admin_email=str(cfg.get("admin_email", "")),
+        simulate=bool(cfg.get("simulate", True)),
+        is_configured=bool(cfg.get("is_configured", False)),
+    )
+
+
+@app.post(
+    "/outreach/send-email",
+    response_model=OutreachEmailSendResponse,
+    tags=["outreach"],
+)
+def send_email_endpoint(
+    request: OutreachEmailSendRequest,
+) -> OutreachEmailSendResponse:
+    """Send an outreach email to a lead using configured SMTP or simulated fallback."""
+    if not request.recipient_email or not request.recipient_email.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="recipient_email must not be empty",
+        )
+    if not request.subject.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="email subject must not be empty",
+        )
+    if not request.body.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="email body must not be empty",
+        )
+
+    try:
+        result = send_outreach_email(
+            recipient=request.recipient_email,
+            subject=request.subject,
+            body=request.body,
+            force_simulate=request.force_simulate,
+        )
+        if result["status"] == "error":
+            raise HTTPException(status_code=502, detail=result["details"])
+        return OutreachEmailSendResponse(**result)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Outreach dispatch failed: {exc}",
+        ) from exc
+
+
+@app.post(
+    "/outreach/send-bulk",
+    response_model=BulkOutreachEmailResponse,
+    tags=["outreach"],
+)
+def send_bulk_emails_endpoint(
+    request: BulkOutreachEmailRequest,
+) -> BulkOutreachEmailResponse:
+    """Dispatch batch outreach emails across multiple scored leads."""
+    items_dicts = [item.model_dump() for item in request.items]
+    raw_results = send_bulk_outreach_emails(
+        items=items_dicts,
+        force_simulate=request.force_simulate,
+    )
+    results = [OutreachEmailSendResponse(**r) for r in raw_results]
+    sent_count = sum(1 for r in results if r.status == "sent")
+    simulated_count = sum(1 for r in results if r.status == "simulated")
+    error_count = sum(1 for r in results if r.status == "error")
+
+    return BulkOutreachEmailResponse(
+        results=results,
+        total=len(results),
+        sent_count=sent_count,
+        simulated_count=simulated_count,
+        error_count=error_count,
+    )
 
 
 @app.get(
@@ -360,8 +485,17 @@ def inject_custom_dataset(request: InjectedDatasetRequest) -> InjectedPipelineRe
     tags=["conversion"],
 )
 def get_sample_injection_dataset_endpoint() -> list[dict[str, object]]:
-    """Return the raw 25-lead sample dataset for frontend injection testing."""
+    """Return the raw sample dataset for frontend injection testing."""
     return get_raw_sample_injection_leads()
+
+
+@app.get(
+    "/conversion/form-responses-dataset",
+    tags=["conversion"],
+)
+def get_form_responses_endpoint() -> list[dict[str, object]]:
+    """Return raw leads from the HackSphere Outreach Google Form responses CSV."""
+    return get_form_response_leads()
 
 
 @app.get(
