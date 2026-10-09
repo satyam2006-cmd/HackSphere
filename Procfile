@@ -1,1 +1,1 @@
-web: cd src && python -m lead_intelligence
+web: /opt/venv/bin/python main.py
